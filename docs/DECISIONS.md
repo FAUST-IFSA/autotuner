@@ -2,6 +2,44 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-13 (Phase 3)
+
+### Signalsmith nodes are pooled and reused, never discarded
+
+Signalsmith's worklet `process()` always returns `true`, so a node is never garbage collected and keeps
+running its STFT even after it is disconnected. Creating nodes per recording would leak a full copy of the
+audio, plus audio-thread CPU, every time a file is opened (twice in React dev mode).
+
+`AudioEngine` takes a playback + preview pair from a per-`AudioContext` pool. On dispose it fades out, drops
+the buffers and returns the pair. Nodes are always created stereo: mono recordings are played on both
+channels by the node itself.
+
+### Drag preview only plays the dragged note
+
+The preview node gets just the note's slice (plus 50 ms pre-roll) on each grab, looped, so it never holds a
+second copy of the whole file. While playback is running, the preview is skipped: playback re-plans its
+schedule on every edit instead, so you hear the change in context.
+
+### Edits during playback re-plan from "now + output latency"
+
+The engine posts a segment at that time with the current shift, using `outputTime` just before it, so
+segments that have already started are kept. The scheduler then restarts from there.
+
+### The scheduler is driven by the worklet's time reports
+
+`setUpdateInterval(20 ms)` runs the scheduler from the audio thread's reports, with a 50 ms timer as backup.
+Timers alone are throttled in background tabs.
+
+### Measured (dev server, Chromium, this MacBook Air)
+
+Re-run with `src/dev/audioChecks.ts`.
+
+| Check | Result |
+| --- | --- |
+| Drag preview latency | engine 21–22 ms (median of 6) + device output 38 ms = **about 59 ms heard** (target about 75 ms) |
+| Playback, synthetic vocal with every other note moved +2 / −3 | 13–17 of 13–17 notes at the target pitch (within 40 cents; the remainder is vibrato in the 46 ms window) |
+| Clicks at note boundaries | click energy at each of 17–20 shift changes 0.7–1.28× the unedited passage (≈1 = nothing added) |
+
 ## 2026-10-13 (Phase 2)
 
 ### Untouched notes keep their sung (fractional) pitch

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useAudioEngine } from '../audio/useAudioEngine'
 import { ExportBar } from '../components/ExportBar'
+import { Transport } from '../components/Transport'
 import {
   type Edit,
   type History,
@@ -31,6 +33,29 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
   const [selection, setSelection] = useState<Set<string>>(() => new Set())
   const [snap, setSnap] = useState(true)
   const [history, setHistory] = useState<History>(emptyHistory)
+  const { engine, playing, error: audioError } = useAudioEngine(project.buffer)
+  const [playheadRevision, setPlayheadRevision] = useState(0)
+
+  // Playback follows edits as they happen, including mid-drag.
+  useEffect(() => engine?.setNotes(notes), [engine, notes])
+
+  const getTime = useCallback(() => engine?.currentTime ?? 0, [engine])
+  const togglePlay = useCallback(() => {
+    if (!engine) return
+    if (engine.isPlaying) engine.pause()
+    else void engine.play()
+  }, [engine])
+  const seek = useCallback(
+    (seconds: number) => {
+      engine?.seek(seconds)
+      setPlayheadRevision((r) => r + 1)
+    },
+    [engine],
+  )
+  // Hearing the dragged note on its own only makes sense when playback isn't already running.
+  const grab = useCallback((note: NoteSegment) => void engine?.startPreview(note), [engine])
+  const grabShift = useCallback((semitones: number) => engine?.updatePreview(semitones), [engine])
+  const release = useCallback(() => engine?.stopPreview(), [engine])
 
   const preview = useCallback((edit: Edit) => onNotesChange((n) => applyEdit(n, edit)), [onNotesChange])
 
@@ -70,7 +95,8 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
       const mod = e.metaKey || e.ctrlKey
       const key = e.key.toLowerCase()
 
-      if (mod && key === 'z') step(e.shiftKey ? 'redo' : 'undo')
+      if (e.key === ' ' && !mod) togglePlay()
+      else if (mod && key === 'z') step(e.shiftKey ? 'redo' : 'undo')
       else if (mod && key === 'y') step('redo')
       else if (mod && key === 'a') setSelection(new Set(notes.map((n) => n.id)))
       else if (e.key === 'Escape') setSelection(new Set())
@@ -91,7 +117,7 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [notes, selection, snap, apply, step])
+  }, [notes, selection, snap, apply, step, togglePlay])
 
   return (
     <main className="editor-screen">
@@ -99,6 +125,14 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
         <button type="button" onClick={onReset}>
           ← New file
         </button>
+        <Transport
+          playing={playing}
+          revision={playheadRevision}
+          disabled={!engine}
+          duration={project.buffer.duration}
+          getTime={getTime}
+          onToggle={togglePlay}
+        />
         <span className="file-name">{project.fileName}</span>
         <span className="file-meta">
           {project.buffer.duration.toFixed(1)}s · {notes.length} notes
@@ -124,8 +158,9 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
             {selection.size > 0 ? 'Reset selected' : 'Reset all'}
           </button>
         </div>
+        {audioError && <span className="error">Playback isn't available: {audioError}</span>}
         <span className="hint">
-          Drag notes to retune · Alt for fine steps · Drag empty space to select · Ctrl + scroll to zoom
+          Space to play · Drag notes to retune (Alt for fine steps) · Drag empty space to select · Ctrl + scroll to zoom
         </span>
       </header>
       <PitchEditor
@@ -138,6 +173,13 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
         onSelectionChange={setSelection}
         onPreview={preview}
         onCommit={commit}
+        getTime={getTime}
+        playing={playing}
+        playheadRevision={playheadRevision}
+        onSeek={seek}
+        onGrab={grab}
+        onGrabShift={grabShift}
+        onRelease={release}
       />
       <ExportBar project={project} />
     </main>

@@ -182,3 +182,19 @@ button:disabled {
   touch-action: none;
   user-select: none;
 }
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transport .play {
+  min-width: 64px;
+}
+
+.position {
+  color: #9aa1ab;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

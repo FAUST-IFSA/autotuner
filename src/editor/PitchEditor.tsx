@@ -6,6 +6,7 @@ import type { F0Curve as Curve, NoteSegment, Peaks } from '../types'
 import { type Edit, shiftNotes, shiftOf } from './edits'
 import { F0Curve } from './F0Curve'
 import { NoteBlob } from './NoteBlob'
+import { Playhead } from './Playhead'
 import { Keyboard, PitchGrid } from './PitchGrid'
 import { TimeRuler } from './TimeRuler'
 import {
@@ -33,13 +34,23 @@ interface Props {
   onPreview: (edit: Edit) => void
   /** The whole drag as one undoable step (notes already show its result). */
   onCommit: (edit: Edit) => void
+  /** Playback position and state, for the playhead. */
+  getTime: () => number
+  playing: boolean
+  playheadRevision: number
+  /** Click on the time ruler. */
+  onSeek: (seconds: number) => void
+  /** Drag preview: a note was grabbed, its shift changed, it was released. */
+  onGrab: (note: NoteSegment) => void
+  onGrabShift: (semitones: number) => void
+  onRelease: () => void
 }
 
 /** Pointer travel (px) before a press on a note becomes a drag. */
 const DRAG_THRESHOLD = 3
 
 type Gesture =
-  | { kind: 'drag'; startY: number; start: Map<string, number>; active: boolean; edit: Edit }
+  | { kind: 'drag'; startY: number; start: Map<string, number>; active: boolean; edit: Edit; grabbed: NoteSegment }
   | { kind: 'marquee'; x0: number; y0: number; x1: number; y1: number; additive: boolean }
 
 export function PitchEditor({
@@ -52,6 +63,13 @@ export function PitchEditor({
   onSelectionChange,
   onPreview,
   onCommit,
+  getTime,
+  playing,
+  playheadRevision,
+  onSeek,
+  onGrab,
+  onGrabShift,
+  onRelease,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [{ width, height }, setSize] = useState({ width: 0, height: 0 })
@@ -150,6 +168,11 @@ export function PitchEditor({
   const onPointerDown = (e: ReactPointerEvent) => {
     if (e.button !== 0) return
     const { x, y, inGrid } = toContent(e)
+    const rect = containerRef.current!.getBoundingClientRect()
+    if (!inGrid && e.clientX - rect.left >= KEYBOARD_WIDTH && e.clientY - rect.top < RULER_HEIGHT) {
+      onSeek(x / pxPerSec)
+      return
+    }
     if (!inGrid) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
@@ -171,7 +194,8 @@ export function PitchEditor({
       onSelectionChange(next)
     }
     const start = new Map(notes.filter((n) => next.has(n.id)).map((n) => [n.id, n.midi]))
-    setGesture({ kind: 'drag', startY: y, start, active: false, edit: [] })
+    setGesture({ kind: 'drag', startY: y, start, active: false, edit: [], grabbed: hit })
+    onGrab(hit)
   }
 
   const onPointerMove = (e: ReactPointerEvent) => {
@@ -191,12 +215,15 @@ export function PitchEditor({
     const edit = shiftNotes(gesture.start, -dy / ROW_HEIGHT, snap && !e.altKey)
     setGesture({ ...gesture, active: true, edit })
     onPreview(edit)
+    const grabbed = edit.find((c) => c.id === gesture.grabbed.id)
+    if (grabbed) onGrabShift(grabbed.to - gesture.grabbed.detectedMidi)
   }
 
   const onPointerUp = (e: ReactPointerEvent) => {
     if (!gesture) return
     setGesture(null)
     if (gesture.kind === 'drag') {
+      onRelease()
       if (gesture.active) onCommit(gesture.edit)
       // A plain click on a note in a multi-selection selects just that note.
       else if (!(e.shiftKey || e.metaKey || e.ctrlKey) && selection.size > 1) {
@@ -248,7 +275,10 @@ export function PitchEditor({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={() => setGesture(null)}
+      onPointerCancel={() => {
+        if (gesture?.kind === 'drag') onRelease()
+        setGesture(null)
+      }}
       onPointerLeave={() => !gesture && setHovered(null)}
     >
       {width > 0 && height > 0 && (
@@ -284,6 +314,16 @@ export function PitchEditor({
               </Group>
             </Group>
           </Layer>
+          <Playhead
+            getTime={getTime}
+            pxPerSec={pxPerSec}
+            scrollX={sx}
+            viewWidth={viewWidth}
+            height={height}
+            playing={playing}
+            revision={playheadRevision}
+            onFollow={(t) => setScrollX(clamp(t * pxPerSec - viewWidth * 0.1, 0, maxScrollX))}
+          />
         </Stage>
       )}
     </div>
