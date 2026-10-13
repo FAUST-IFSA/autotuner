@@ -65,7 +65,7 @@ export function Transport({
         <button type="button" onClick={onToStart} disabled={disabled} title="Back to start (Enter)" aria-label="Back to start">
           <Icon name="toStart" />
         </button>
-        <button type="button" onClick={onRewind} disabled={disabled} title="Previous note (←)" aria-label="Previous note">
+        <button type="button" onClick={onRewind} disabled={disabled} title="Previous note (<)" aria-label="Previous note">
           <Icon name="rewind" />
         </button>
         <button
@@ -78,7 +78,7 @@ export function Transport({
         >
           <Icon name={playing ? 'pause' : 'play'} />
         </button>
-        <button type="button" onClick={onFastForward} disabled={disabled} title="Next note (→)" aria-label="Next note">
+        <button type="button" onClick={onFastForward} disabled={disabled} title="Next note (>)" aria-label="Next note">
           <Icon name="fastForward" />
         </button>
       </div>

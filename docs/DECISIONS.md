@@ -17,16 +17,16 @@ Following is page-by-page: when the playhead leaves the view, the view jumps so 
 left. Any wheel scroll or zoom turns following off, and Play or any jump (Enter, arrows, ruler click, skip
 buttons) turns it back on.
 
-### Arrow keys move the playhead between notes; Enter returns to the start
+### < and > move the playhead between notes; Enter returns to the start
 
-This supersedes Phase 2's "Left/Right step the selection". ← and → jump the playhead to the previous/next
-note start. Rewind has 150 ms of slack, so pressing it at a note's start goes to the note before. Up/Down
-still move selected notes.
+< and > jump the playhead to the previous/next note start; `,` and `.` work too, so Shift isn't needed.
+Rewind has 150 ms of slack, so pressing it at a note's start goes to the note before. ← and → still step
+the selection between notes (Phase 2), and Up/Down still move selected notes.
 
 ### Transport: back to start, rewind, play/pause, fast forward
 
 Styled after the reference screenshot (dark segmented buttons, green play icon). Rewind and fast forward do
-the same as ← and →. Space and Enter are handled at the window level and their default is prevented, so a
+the same as < and >. Space and Enter are handled at the window level and their default is prevented, so a
 focused transport button never fires twice.
 
 ## 2026-10-13 (Phase 3)
