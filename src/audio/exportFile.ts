@@ -34,23 +34,6 @@ function encodeMp3InWorker(channels: Float32Array[], sampleRate: number, onProgr
   })
 }
 
-/** Highest sample the file may contain (just under full scale, so encoders and players never clip). */
-const PEAK_LIMIT = 0.995
-
-/**
- * Pitch shifting can push a loudly mastered vocal's peaks past full scale (a test vocal peaking at
- * 0.959 rendered at 1.093). Rather than letting those clip, the whole file is turned down just enough.
- * Files that don't exceed the limit are untouched.
- */
-export function preventClipping(channels: Float32Array[]): Float32Array[] {
-  let peak = 0
-  for (const channel of channels) for (const v of channel) peak = Math.max(peak, Math.abs(v))
-  if (peak <= PEAK_LIMIT) return channels
-  const gain = PEAK_LIMIT / peak
-  for (const channel of channels) for (let i = 0; i < channel.length; i++) channel[i] *= gain
-  return channels
-}
-
 /** Renders the edited vocal at full quality and encodes it. */
 export async function exportTuned(
   project: Project,
@@ -62,7 +45,7 @@ export async function exportTuned(
   // MP3 tops out at 48 kHz; WAV always keeps the original rate.
   if (format === 'mp3' && source.sampleRate > MP3_MAX_SAMPLE_RATE) source = await resample(source, MP3_MAX_SAMPLE_RATE)
   const rendered = await renderTuned(source, project.notes, render)
-  const channels = preventClipping(channelsOf(rendered))
+  const channels = channelsOf(rendered)
   const blob =
     format === 'wav'
       ? new Blob([encodeWav(channels, rendered.sampleRate)], { type: 'audio/wav' })

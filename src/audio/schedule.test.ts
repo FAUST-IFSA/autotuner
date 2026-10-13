@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteSegment } from '../types'
-import { CROSSFADE_SECONDS, ShiftScheduler, type TimedChange, buildSchedule, planVoices, shiftAt } from './schedule'
+import { ShiftScheduler, type TimedChange, buildSchedule, shiftAt } from './schedule'
 
 const note = (start: number, end: number, detectedMidi: number, midi = detectedMidi): NoteSegment => ({
   id: `${start}`,
@@ -74,57 +74,5 @@ describe('ShiftScheduler', () => {
   it('drops changes at or before the active segment on reset', () => {
     const { posted } = run([{ output: 9, semitones: 1 }, ...changes.slice(0, 1)], [10])
     expect(posted.map((p) => p.output)).toEqual([10.5])
-  })
-})
-
-describe('fast-vocal schedule rules', () => {
-  it('holds the shift across short gaps instead of flipping back to 0', () => {
-    const schedule = buildSchedule([note(0.5, 1, 60, 60.3), note(1.05, 1.5, 62, 61.7)])
-    expect(schedule.map((c) => c.semitones.toFixed(1))).toEqual(['0.0', '0.3', '-0.3', '0.0'])
-  })
-
-  it('still returns to 0 across longer gaps', () => {
-    const schedule = buildSchedule([note(0.5, 1, 60, 60.3), note(1.2, 1.5, 62, 61.7)])
-    expect(schedule.map((c) => c.semitones.toFixed(1))).toEqual(['0.0', '0.3', '0.0', '-0.3', '0.0'])
-  })
-})
-
-describe('planVoices', () => {
-  const schedule = [
-    { t: 0, semitones: 0 },
-    { t: 1, semitones: 2 },
-    { t: 2, semitones: -1 },
-    { t: 3, semitones: 0 },
-  ]
-
-  it('alternates segments between voices, crossfading at each change', () => {
-    const plan = planVoices(schedule)
-    expect(plan.initial).toEqual([0, 2])
-    expect(plan.fades).toEqual([
-      { t: 1, to: 1 },
-      { t: 2, to: 0 },
-      { t: 3, to: 1 },
-    ])
-  })
-
-  it('changes a voice only after it has faded out, well before it is heard again', () => {
-    const plan = planVoices(schedule)
-    // Voice 0 played segment 0 (until the fade at 1 s); it gets segment 2's pitch right after.
-    expect(plan.changes[0]).toEqual([{ t: 1 + CROSSFADE_SECONDS / 2, semitones: -1 }])
-    expect(plan.changes[1]).toEqual([{ t: 2 + CROSSFADE_SECONDS / 2, semitones: 0 }])
-    for (const v of [0, 1] as const) {
-      for (const change of plan.changes[v]) {
-        const heardAgain = plan.fades.find((f) => f.to === v && f.t > change.t)
-        if (heardAgain) expect(heardAgain.t - CROSSFADE_SECONDS / 2).toBeGreaterThan(change.t)
-        const lastHeard = plan.fades.filter((f) => f.t < change.t).at(-1)
-        expect(lastHeard?.to).not.toBe(v)
-      }
-    }
-  })
-
-  it('starts mid-song on the segment playing at that point', () => {
-    const plan = planVoices(schedule, 1.5)
-    expect(plan.initial).toEqual([2, -1])
-    expect(plan.fades[0]).toEqual({ t: 2, to: 1 })
   })
 })

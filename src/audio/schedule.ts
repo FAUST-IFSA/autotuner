@@ -8,18 +8,10 @@ export interface ShiftChange {
 
 /** Shifts start this much before a note and end this much after it, to cover onsets and releases. */
 export const EDGE_PAD_SECONDS = 0.01
-/**
- * Gaps between shifted notes shorter than this aren't worth a return to 0: in fast vocals the brief
- * flip back and forth was a main source of pops. The gap is silence or breath, so holding a shift is fine.
- */
-const MIN_GAP_SECONDS = 0.08
-/**
- * Segments shorter than this collapse into the next one. Must be longer than CROSSFADE_SECONDS so each
- * voice has time to change pitch while it is silent.
- */
-const MIN_SEGMENT_SECONDS = 0.03
-/** Length of the crossfade between voices at every pitch change. */
-export const CROSSFADE_SECONDS = 0.02
+/** Gaps between shifted notes shorter than this aren't worth a return to 0. */
+const MIN_GAP_SECONDS = 0.03
+/** Changes closer together than this collapse into the later one (about 2 render quanta). */
+const MIN_SEGMENT_SECONDS = 0.006
 
 /**
  * The transpose timeline for playback and export: each note's shift over its span, 0 between notes.
@@ -109,40 +101,4 @@ export class ShiftScheduler {
   get pending() {
     return this.queue.length
   }
-}
-
-/** One pitch change for one voice, and the crossfades that move the sound between the two voices. */
-export interface VoicePlan {
-  /** Shift each voice starts with at `from`. */
-  initial: [number, number]
-  /** Per voice: pitch changes, each made while that voice is silent. */
-  changes: [ShiftChange[], ShiftChange[]]
-  /** Crossfades centred at `t`: the sound moves to voice `to`. */
-  fades: { t: number; to: 0 | 1 }[]
-}
-
-/**
- * Splits a transpose timeline across two stretcher voices so neither changes pitch while it is heard.
- * Each segment plays on alternating voices; the next segment's pitch is set on the other voice right
- * after it has faded out, and a short crossfade at each boundary hands the sound over. Changing the
- * pitch of a sounding stretcher smears the jump across its analysis window, which pops on fast vocals.
- */
-export function planVoices(schedule: ShiftChange[], from = 0, crossfade = CROSSFADE_SECONDS): VoicePlan {
-  // Segment playing at `from`, then everything after it.
-  let first = 0
-  while (first + 1 < schedule.length && schedule[first + 1].t <= from) first++
-  const segments = schedule.slice(first)
-  const voiceOf = (k: number) => (k % 2) as 0 | 1
-  const plan: VoicePlan = {
-    initial: [segments[0].semitones, segments[1]?.semitones ?? 0],
-    changes: [[], []],
-    fades: [],
-  }
-  for (let k = 1; k < segments.length; k++) {
-    plan.fades.push({ t: segments[k].t, to: voiceOf(k) })
-    // Voice for segment k+1 last played segment k-1, which faded out around segments[k].t.
-    const next = segments[k + 1]
-    if (next) plan.changes[voiceOf(k + 1)].push({ t: segments[k].t + crossfade / 2, semitones: next.semitones })
-  }
-  return plan
 }

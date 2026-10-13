@@ -7,8 +7,6 @@
 //   await m.retriggerCheck()   // moving a held note a semitone restarts it at the new pitch
 //   await m.nudgeCheck()       // Up/Down plays the note once at its new pitch
 //   await m.exportCheck()      // export: length, pitch per note, clicks, timing offset
-//   await m.popScan()          // export of a fast real vocal: new transients (pops) vs the original
-//   await m.livePopScan()      // live playback of the same, with edits during playback
 import { AudioEngine } from '../audio/AudioEngine'
 import { getAudioContext } from '../audio/decode'
 import { buildSchedule } from '../audio/schedule'
@@ -166,8 +164,8 @@ export async function playbackCheck(seconds = 12) {
   const run = async (notes: NoteSegment[]) => {
     const engine = await AudioEngine.create(ctx, buffer)
     engine.setNotes(notes)
-    const internals = engine as unknown as { bus: GainNode; startOutput: number; from: number }
-    const rec = await record(ctx, internals.bus)
+    const internals = engine as unknown as { playerGain: GainNode; startOutput: number; from: number }
+    const rec = await record(ctx, internals.playerGain)
     await engine.play(0)
     await sleep(seconds * 1000 + 300)
     engine.pause()
@@ -394,167 +392,4 @@ export async function exportCheck() {
     shiftChanges: clickExcess.length,
     offsetMs: bestLag,
   }
-}
-
-/**
- * Stress test for fast, heavily corrected vocals: renders a real vocal with Tune Up (and optionally
- * big alternating moves) and reports clipping and pops at shift changes compared with the original.
- */
-export async function stressCheck(fixture = 'looperman-a-5957902-0024908-fragments-of-a-bruised-love.mp3', bigMoves = false) {
-  const { loadAudioFile } = await import('../audio/decode')
-  const { renderTuned } = await import('../audio/export')
-  const { tuneUp, applyEdit } = await import('../editor/edits')
-  const blob = await (await fetch(`/fixtures/${fixture}`)).blob()
-  const project = await loadAudioFile(new File([blob], fixture))
-  let notes = applyEdit(project.notes, tuneUp(project.notes))
-  if (bigMoves) notes = notes.map((n, i) => ({ ...n, midi: Math.round(n.midi) + (i % 2 ? 2 : -2) }))
-  const out = await renderTuned(project.buffer, notes)
-  return { ...analyseRender(project.buffer, out, notes), notes: notes.length }
-}
-
-/** Clipping and boundary pops of a render against its original. */
-export function analyseRender(original: AudioBuffer, out: AudioBuffer, notes: NoteSegment[]) {
-  const sr = out.sampleRate
-  const peak = (b: AudioBuffer) => {
-    let p = 0
-    for (let c = 0; c < b.numberOfChannels; c++) for (const v of b.getChannelData(c)) p = Math.max(p, Math.abs(v))
-    return p
-  }
-  let clipped = 0
-  for (let c = 0; c < out.numberOfChannels; c++) for (const v of out.getChannelData(c)) if (Math.abs(v) >= 0.999) clipped++
-  const mono = (b: AudioBuffer) => {
-    const x = new Float32Array(b.length)
-    for (let c = 0; c < b.numberOfChannels; c++) b.getChannelData(c).forEach((v, i) => (x[i] += v / b.numberOfChannels))
-    return x
-  }
-  const x = mono(out)
-  const o = mono(original)
-  const changes = buildSchedule(notes).filter((c) => c.t > 0.3 && c.t < out.duration - 0.3)
-  const excess = changes.map((c) => clickRatio(x, sr, c.t) / Math.max(clickRatio(o, sr, c.t), 0.05))
-  const sorted = [...excess].sort((a, b) => a - b)
-  return {
-    originalPeak: +peak(original).toFixed(3),
-    renderPeak: +peak(out).toFixed(3),
-    clippedSamples: clipped,
-    shiftChanges: changes.length,
-    popsOver2x: excess.filter((e) => e > 2).length,
-    popsOver4x: excess.filter((e) => e > 4).length,
-    medianExcess: +sorted[sorted.length >> 1].toFixed(2),
-    worstExcess: +sorted.at(-1)!.toFixed(2),
-    worstAt: changes
-      .map((c, i) => [c.t, excess[i]] as const)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([t, e]) => `${t.toFixed(2)}s ×${e.toFixed(1)}`),
-  }
-}
-
-/**
- * Finds the worst new transients anywhere in a render: 5 ms frames whose high-frequency energy jumps
- * far above the original's at the same spot. Each is tagged with clipping and its distance to the
- * nearest shift change, to tell clipping pops from transition pops.
- */
-export function findPops(original: AudioBuffer, out: AudioBuffer, notes: NoteSegment[], top = 12) {
-  const sr = out.sampleRate
-  const frame = Math.round(sr * 0.005)
-  const hf = (b: AudioBuffer) => {
-    const frames = Math.floor(b.length / frame)
-    const e = new Float32Array(frames)
-    const peaks = new Float32Array(frames)
-    for (let c = 0; c < b.numberOfChannels; c++) {
-      const x = b.getChannelData(c)
-      for (let f = 0; f < frames; f++) {
-        for (let i = Math.max(2, f * frame); i < (f + 1) * frame; i++) {
-          e[f] += (x[i] - 2 * x[i - 1] + x[i - 2]) ** 2
-          peaks[f] = Math.max(peaks[f], Math.abs(x[i]))
-        }
-      }
-    }
-    return { e, peaks }
-  }
-  const a = hf(original)
-  const b = hf(out)
-  const changes = buildSchedule(notes).map((c) => c.t)
-  const candidates: { t: number; ratio: number; clipped: boolean; nearestChangeMs: number }[] = []
-  for (let f = 2; f < b.e.length - 2; f++) {
-    // Compare with the original's loudest frame nearby, so normal consonants don't count.
-    const ref = Math.max(a.e[f - 2], a.e[f - 1], a.e[f], a.e[f + 1], a.e[f + 2], 1e-6)
-    const ratio = b.e[f] / ref
-    if (ratio < 3) continue
-    const t = (f + 0.5) * 0.005
-    const nearest = changes.reduce((m, c) => Math.min(m, Math.abs(c - t)), Infinity)
-    candidates.push({ t, ratio, clipped: b.peaks[f] >= 0.999, nearestChangeMs: Math.round(nearest * 1000) })
-  }
-  candidates.sort((x, y) => y.ratio - x.ratio)
-  const worst = candidates.slice(0, top)
-  return {
-    newTransientsOver3x: candidates.length,
-    atClipping: candidates.filter((c) => c.clipped).length,
-    within40msOfChange: candidates.filter((c) => c.nearestChangeMs <= 40).length,
-    worst: worst.map((c) => `${c.t.toFixed(2)}s ×${c.ratio.toFixed(1)}${c.clipped ? ' CLIP' : ''} (${c.nearestChangeMs} ms from change)`),
-  }
-}
-
-/** Renders a real vocal like stressCheck and runs findPops on it. */
-export async function popScan(fixture = 'looperman-a-5957902-0024908-fragments-of-a-bruised-love.mp3', bigMoves = false) {
-  const { loadAudioFile } = await import('../audio/decode')
-  const { renderTuned } = await import('../audio/export')
-  const { tuneUp, applyEdit } = await import('../editor/edits')
-  const blob = await (await fetch(`/fixtures/${fixture}`)).blob()
-  const project = await loadAudioFile(new File([blob], fixture))
-  let notes = applyEdit(project.notes, tuneUp(project.notes))
-  if (bigMoves) notes = notes.map((n, i) => ({ ...n, midi: Math.round(n.midi) + (i % 2 ? 2 : -2) }))
-  const out = await renderTuned(project.buffer, notes)
-  // Also render with nothing moved: what the stretcher alone does to this vocal.
-  const zero = notes.map((n) => ({ ...n, midi: n.detectedMidi + 1e-3 }))
-  const outZero = await renderTuned(project.buffer, zero)
-  return { edited: findPops(project.buffer, out, notes), stretcherOnly: findPops(project.buffer, outZero, zero) }
-}
-
-/**
- * Live playback of a fast vocal with Tune Up applied: records the engine's output, lines it up with the
- * original, and scans it for pops. While playing, it re-applies edits a few times (as arrow nudges or
- * Tune Up would) to check that edits during playback don't pop either.
- */
-export async function livePopScan(seconds = 25, fixture = 'looperman-a-5957902-0024908-fragments-of-a-bruised-love.mp3') {
-  const { loadAudioFile } = await import('../audio/decode')
-  const { tuneUp, applyEdit } = await import('../editor/edits')
-  const ctx = getAudioContext()
-  await ctx.resume()
-  const blob = await (await fetch(`/fixtures/${fixture}`)).blob()
-  const project = await loadAudioFile(new File([blob], fixture))
-  const tuned = applyEdit(project.notes, tuneUp(project.notes))
-  const engine = await AudioEngine.create(ctx, project.buffer)
-  const internals = engine as unknown as { bus: GainNode; startOutput: number; from: number }
-  engine.setNotes(tuned)
-  const rec = await record(ctx, internals.bus)
-  await engine.play(0)
-  const editTimes: number[] = []
-  for (const at of [6, 12, 18]) {
-    await sleep(at * 1000 - (editTimes.length ? editTimes.at(-1)! * 1000 : 0))
-    // Alternate between two edit states: every note +1 semitone, then back.
-    const lifted = editTimes.length % 2 === 0
-    engine.setNotes(lifted ? tuned.map((n) => ({ ...n, midi: n.midi + 1 })) : tuned)
-    editTimes.push(at)
-  }
-  await sleep((seconds - editTimes.at(-1)!) * 1000)
-  engine.pause()
-  const out = rec.stop()
-  engine.dispose()
-
-  // Recording sample index for input time t is (startOutput + t - from - t0) * sr.
-  const sr = out.sampleRate
-  const offset = Math.round((internals.startOutput - internals.from - out.t0) * sr)
-  const length = Math.min(Math.round(seconds * sr), out.x.length - offset)
-  const live = new AudioBuffer({ length, sampleRate: sr, numberOfChannels: 1 })
-  live.copyToChannel(out.x.slice(offset, offset + length), 0)
-  const original = new AudioBuffer({ length, sampleRate: sr, numberOfChannels: 1 })
-  const mixed = new Float32Array(length)
-  for (let c = 0; c < project.buffer.numberOfChannels; c++) {
-    const data = project.buffer.getChannelData(c)
-    for (let i = 0; i < length; i++) mixed[i] += data[i] / project.buffer.numberOfChannels
-  }
-  original.copyToChannel(mixed, 0)
-  const pops = findPops(original, live, tuned)
-  return { ...pops, editTimes, nearEdits: pops.worst.filter((w) => editTimes.some((e) => Math.abs(parseFloat(w) - e) < 0.3)) }
 }
