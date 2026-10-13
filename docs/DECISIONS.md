@@ -2,6 +2,43 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-13 (Phase 1)
+
+### Fragment merging after monophonic cleanup
+
+Vibrato that crosses a semitone boundary makes Basic Pitch flip between neighbouring notes, so one held note
+came out as several pieces (the 62.3 note in the synthetic fixture became 4). `mergeFragments` rejoins touching
+segments (gap < 40 ms) whose sung pitch differs by less than 0.5 semitone. Result on the fixture: 35 notes
+became 28 of 28, all within 15 cents. Trade-off: a legato repeat of the same pitch with no gap merges into
+one note.
+
+### F0 median uses only frames within a semitone of Basic Pitch's note
+
+This keeps pitchy's octave errors and neighbouring-note frames out of `detectedMidi`. Basic Pitch decides which
+note it is; the F0 curve decides exactly how sharp or flat it was sung.
+
+### Model and WASM binaries copied into `public/` on `postinstall`
+
+`scripts/copy-assets.mjs` copies them from `node_modules`, so they're self-hosted, never committed, and always
+match the installed versions.
+
+### Analysis deps in `optimizeDeps.include`
+
+Without this, Vite finds tfjs only when the worker first loads and reloads the page in the middle of the first
+analysis.
+
+### Single-threaded WASM for now
+
+The threaded tfjs WASM build needs cross-origin isolation (COOP/COEP headers), so the app uses the
+single-threaded SIMD build. Measured in Chromium: about 6× real time (53 s of audio in 8.7 s, 68 s in 10.9 s,
+109 s in 17.2 s). Revisit if analysis feels slow: adding the headers is a two-line Vite change, but deployment
+must send them too.
+
+### Kept the teammate's lockfile versions
+
+New packages were added on top of `canvas-setup`'s `package-lock.json`, so the scaffold's resolved versions
+(konva 10.7.1, oxlint 1.87.0, ...) stay unchanged.
+
 ## 2026-10-13
 
 ### Adopted the team scaffold (`canvas-setup`) and rewrote PLAN.md as v2
@@ -14,8 +51,8 @@ started:
 - oxlint instead of eslint and Prettier
 - analysis in a browser Web Worker instead of a Fastify server
 
-With analysis in the browser there is no server, so audio never leaves the device. The v1 Phase 0 code is
-kept on the `aidan/phase-0-scaffold` branch for reference.
+With analysis in the browser there is no server, so audio never leaves the device. The v1 spike code is
+kept in `docs/spikes/code/` for reference; the v1 branch was deleted.
 
 ### No server means the email gate has no backend
 

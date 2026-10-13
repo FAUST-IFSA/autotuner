@@ -5,7 +5,7 @@ Test material: `fixtures/synth-vocal-*` from `scripts/make-fixture.mjs`, a synth
 formants, vibrato, scoops and breath noise, plus 28 notes with known pitches (some deliberately detuned).
 **Real vocals have not been tested yet** (clean dry, reverb, fast run). Those are still needed.
 
-Spike code lives on the `aidan/phase-0-scaffold` branch (`spikes/`), which used the v1 monorepo layout.
+Spike source is kept for reference in `docs/spikes/code/` (written for the v1 monorepo layout, not built).
 These results carry over unchanged to the v2 plan (team scaffold, analysis in a browser worker).
 
 ## 1. Signalsmith live transpose (`spikes/audio`, "Live transpose")

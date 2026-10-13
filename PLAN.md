@@ -12,7 +12,7 @@ trust the library's own README, source and tests.
 **Revision history.** v1 (2026-10-08) planned an npm-workspaces monorepo with a Fastify analysis server and a
 PixiJS editor, and Phase 0 spiked its risky parts. v2 (2026-10-13) adopts the team scaffold instead. The
 Phase 0 findings still apply and are summarized in §7. The full write-up is in `docs/spikes/phase-0-results.md`,
-and the v1 code is on the `aidan/phase-0-scaffold` branch.
+and the spike code is in `docs/spikes/code/` (reference only, not built).
 
 The only WebAssembly in the project arrives precompiled inside npm packages: the Signalsmith pitch shifter and
 the TensorFlow.js WASM backend. We write no C++.
