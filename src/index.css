@@ -1,0 +1,159 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #e6e8eb;
+  background: #0f1115;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: #22252c;
+  border: 1px solid #30343d;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #2a2e37;
+}
+
+.upload-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+}
+
+.upload-screen h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.subtitle {
+  margin: 0 0 16px;
+  color: #9aa1ab;
+}
+
+.dropzone {
+  width: min(560px, 100%);
+  padding: 56px 24px;
+  border: 2px dashed #3a3f4b;
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dropzone:hover,
+.dropzone.active {
+  border-color: #5eb0ef;
+  background: #15202b;
+}
+
+.dropzone.busy {
+  cursor: progress;
+  border-style: solid;
+}
+
+.dropzone p {
+  margin: 0;
+}
+
+.dropzone-title {
+  font-size: 18px;
+  margin-bottom: 6px !important;
+}
+
+.dropzone-hint {
+  color: #7d8590;
+  font-size: 14px;
+}
+
+.error {
+  color: #ff7b72;
+  margin: 8px 0 0;
+}
+
+.editor-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #30343d;
+  font-size: 14px;
+}
+
+.editor-header button,
+.file-name,
+.file-meta {
+  white-space: nowrap;
+}
+
+.file-name {
+  font-weight: 600;
+}
+
+.file-meta,
+.hint {
+  color: #7d8590;
+}
+
+.hint {
+  margin-left: auto;
+}
+
+button.primary {
+  background: #1f6feb;
+  border-color: #388bfd;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #388bfd;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-top: 1px solid #30343d;
+  font-size: 14px;
+}
+
+.export-note {
+  margin-left: auto;
+  color: #7d8590;
+}
+
+.pitch-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
