@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteSegment } from '../types'
-import { mergeFragments, toMonophonic, toSegments } from './notes'
+import { dropOutliers, mergeFragments, numberNotes, toMonophonic, toSegments } from './notes'
 
 const note = (start: number, end: number, midi: number, amplitude = 0.5) => ({ start, end, midi, amplitude })
 
@@ -32,7 +32,7 @@ describe('toSegments', () => {
     const [seg] = toSegments([{ start: 0, end: 0.4, midi: 60 }], f0)
     expect(seg.detectedMidi).toBeCloseTo(60.3)
     expect(seg.originalMidi).toBe(60)
-    expect(seg.midi).toBe(60)
+    expect(seg.midi).toBe(seg.detectedMidi)
   })
 
   it('falls back to the detector pitch without voiced frames', () => {
@@ -44,21 +44,23 @@ describe('toSegments', () => {
   })
 })
 
+const seg = (start: number, end: number, detectedMidi: number): NoteSegment => ({
+  id: '',
+  start,
+  end,
+  detectedMidi,
+  originalMidi: Math.round(detectedMidi),
+  midi: detectedMidi,
+})
+
 describe('mergeFragments', () => {
   const f0 = { hopSec: 0.1, midi: [62.2, 62.4, 62.3, 62.2, 63.4, 63.5, 64, 64], clarity: [] }
-  const seg = (start: number, end: number, detectedMidi: number): NoteSegment => ({
-    id: '',
-    start,
-    end,
-    detectedMidi,
-    originalMidi: Math.round(detectedMidi),
-    midi: Math.round(detectedMidi),
-  })
 
   it('joins touching fragments of one vibrato note and re-reads its pitch', () => {
     const out = mergeFragments([seg(0, 0.15, 62.2), seg(0.15, 0.25, 62.48), seg(0.25, 0.35, 62.1)], f0)
     expect(out).toHaveLength(1)
-    expect(out[0]).toMatchObject({ id: 'note-0', start: 0, end: 0.35, originalMidi: 62, midi: 62 })
+    expect(out[0]).toMatchObject({ start: 0, end: 0.35, originalMidi: 62 })
+    expect(out[0].midi).toBe(out[0].detectedMidi)
     expect(out[0].detectedMidi).toBeCloseTo(62.25)
   })
 
@@ -68,5 +70,31 @@ describe('mergeFragments', () => {
 
   it('keeps fragments separated by a real gap', () => {
     expect(mergeFragments([seg(0, 0.2, 62.3), seg(0.3, 0.4, 62.3)], f0)).toHaveLength(2)
+  })
+})
+
+describe('dropOutliers', () => {
+  // 10 ms frames; voiced at 60 for the first second, at 72 between 1.3 s and 1.45 s.
+  const midi = Array.from({ length: 300 }, (_, i) => (i < 100 ? 60 : i >= 130 && i < 145 ? 72 : null))
+  const f0 = { hopSec: 0.01, midi, clarity: midi.map(() => 0.9) }
+  const melody = [seg(0, 0.5, 60), seg(0.5, 1, 61), seg(1.6, 2, 60)]
+
+  it('drops a short note an octave from the melody with no F0 support', () => {
+    expect(dropOutliers([...melody, seg(1.1, 1.2, 72)], f0)).toEqual(melody)
+  })
+
+  it('keeps a short leap that the F0 curve backs up', () => {
+    expect(dropOutliers([...melody, seg(1.3, 1.45, 72)], f0)).toHaveLength(4)
+  })
+
+  it('keeps long notes and nearby pitches', () => {
+    expect(dropOutliers([...melody, seg(1.0, 1.5, 72)], f0)).toHaveLength(4)
+    expect(dropOutliers([...melody, seg(1.1, 1.2, 64)], f0)).toHaveLength(4)
+  })
+})
+
+describe('numberNotes', () => {
+  it('assigns ids in order', () => {
+    expect(numberNotes([seg(0, 1, 60), seg(1, 2, 62)]).map((n) => n.id)).toEqual(['note-0', 'note-1'])
   })
 })

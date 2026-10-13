@@ -1,7 +1,7 @@
 import type { GraphModel } from '@tensorflow/tfjs'
 import type { F0Curve, NoteSegment } from '../types'
-import { ANALYSIS_SAMPLE_RATE, computeF0 } from './f0'
-import { mergeFragments, runBasicPitch, toMonophonic, toSegments } from './notes'
+import { ANALYSIS_SAMPLE_RATE, computeF0, curveForDisplay } from './f0'
+import { dropOutliers, mergeFragments, numberNotes, runBasicPitch, toMonophonic, toSegments } from './notes'
 import { detectSegments } from './segments'
 
 export interface PitchAnalysis {
@@ -29,11 +29,13 @@ export async function analyzePitch(
     const model = await loadModel()
     const raw = await runBasicPitch(samples, model, (p) => onProgress(F0_SHARE + p * (1 - F0_SHARE)))
     onProgress(1)
-    return { notes: mergeFragments(toSegments(toMonophonic(raw), f0), f0), f0, usedFallback: false }
+    const notes = numberNotes(dropOutliers(mergeFragments(toSegments(toMonophonic(raw), f0), f0), f0))
+    return { notes, f0: curveForDisplay(f0, notes), usedFallback: false }
   } catch (err) {
     console.error('Basic Pitch failed, falling back to loudness segments', err)
     const spans = detectSegments(samples, ANALYSIS_SAMPLE_RATE).map(({ start, end }) => ({ start, end }))
     onProgress(1)
-    return { notes: toSegments(spans, f0), f0, usedFallback: true }
+    const notes = numberNotes(toSegments(spans, f0))
+    return { notes, f0: curveForDisplay(f0, notes), usedFallback: true }
   }
 }

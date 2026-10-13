@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { ANALYSIS_SAMPLE_RATE, computeF0, f0Median, medianFilterVoicedRuns } from './f0'
+import {
+  ANALYSIS_SAMPLE_RATE,
+  computeF0,
+  curveForDisplay,
+  dropShortRuns,
+  f0Median,
+  f0Support,
+  medianFilterVoicedRuns,
+} from './f0'
 import { midiToHz } from './music'
 
 function tone(midi: number, seconds: number, sr = ANALYSIS_SAMPLE_RATE) {
@@ -43,7 +51,7 @@ describe('computeF0', () => {
 })
 
 describe('f0Median', () => {
-  const f0 = { hopSec: 0.01, midi: [null, 60.2, 60.1, 72.1, 60.3, null], clarity: [] }
+  const f0 = { hopSec: 0.01, midi: [null, 60.2, 60.1, 72.1, 60.3, null], clarity: [0, 0.7, 0.9, 0.9, 0.9, 0] }
 
   it('ignores frames far from the reference pitch (octave errors)', () => {
     expect(f0Median(f0, 0, 0.05, 60)).toBeCloseTo(60.2)
@@ -51,5 +59,26 @@ describe('f0Median', () => {
 
   it('returns null without enough voiced frames', () => {
     expect(f0Median(f0, 0, 0.015)).toBeNull()
+  })
+})
+
+describe('weak frames inside notes', () => {
+  // Frame 1 is weak (0.7): it counts near a note's pitch, but not on its own.
+  const f0 = { hopSec: 0.01, midi: [60.1, 60.2, 60.1, 67, null], clarity: [0.9, 0.7, 0.9, 0.7, 0] }
+
+  it('counts weak frames only when they agree with a reference pitch', () => {
+    expect(f0Median(f0, 0, 0.02, undefined, 2)).toBeCloseTo(60.1)
+    expect(f0Support(f0, 0, 0.04, 60)).toBeCloseTo(3 / 5)
+  })
+
+  it('shows weak frames only inside a matching note', () => {
+    expect(curveForDisplay(f0, []).midi).toEqual([null, null, null, null, null])
+    expect(curveForDisplay(f0, [{ start: 0, end: 0.04, detectedMidi: 60 }]).midi).toEqual([60.1, 60.2, 60.1, null, null])
+  })
+})
+
+describe('dropShortRuns', () => {
+  it('hides voiced runs shorter than the minimum', () => {
+    expect(dropShortRuns([60, null, 61, 61, 61, null, 62], 2)).toEqual([null, null, 61, 61, 61, null, null])
   })
 })

@@ -1,7 +1,8 @@
 import { BasicPitch, addPitchBendsToNoteEvents, noteFramesToTime, outputToNotesPoly } from '@spotify/basic-pitch'
 import type { GraphModel } from '@tensorflow/tfjs'
 import type { F0Curve, NoteSegment } from '../types'
-import { f0Median } from './f0'
+import { f0Median, f0Support } from './f0'
+import { median } from './music'
 
 /** A note event from Basic Pitch (polyphonic, may overlap). */
 export interface RawNote {
@@ -15,6 +16,11 @@ export const MIN_NOTE_SECONDS = 0.06
 export const MERGE_GAP_SECONDS = 0.04
 /** Touching segments whose sung pitch differs by less than this are fragments of one note. */
 export const FRAGMENT_SEMITONES = 0.5
+/** Outlier rule: short, far from the surrounding melody, and weakly backed by the F0 curve. */
+const OUTLIER_MAX_SECONDS = 0.2
+const OUTLIER_MIN_SEMITONES = 7
+const OUTLIER_MAX_SUPPORT = 0.5
+const OUTLIER_CONTEXT_SECONDS = 2
 
 /** Runs Basic Pitch on 22,050 Hz mono audio. `onProgress` gets 0..1. */
 export async function runBasicPitch(
@@ -89,7 +95,8 @@ export function toSegments(notes: { start: number; end: number; midi?: number }[
       start: note.start,
       end: note.end,
       originalMidi,
-      midi: originalMidi,
+      // Untouched notes stay where they were sung; edits move `midi` away from `detectedMidi`.
+      midi: detectedMidi,
       detectedMidi,
     })
   }
@@ -114,8 +121,29 @@ export function mergeFragments(segments: NoteSegment[], f0: F0Curve): NoteSegmen
         (seg.end - last.start)
       last.end = seg.end
       last.detectedMidi = f0Median(f0, last.start, last.end, weighted) ?? weighted
-      last.originalMidi = last.midi = Math.round(last.detectedMidi)
+      last.midi = last.detectedMidi
+      last.originalMidi = Math.round(last.detectedMidi)
     } else merged.push({ ...seg })
   }
-  return merged.map((seg, i) => ({ ...seg, id: `note-${i}` }))
+  return merged
 }
+
+/**
+ * Drops stray detections: breaths, consonants and overtones that Basic Pitch heard an octave or more
+ * away from the melody. A note goes only if it is short, at least 7 semitones from the median of
+ * its neighbours (within 2 s), and less than half covered by matching F0 frames, so real leaps stay.
+ */
+export function dropOutliers(segments: NoteSegment[], f0: F0Curve): NoteSegment[] {
+  const mid = (n: NoteSegment) => (n.start + n.end) / 2
+  return segments.filter((seg) => {
+    if (seg.end - seg.start >= OUTLIER_MAX_SECONDS) return true
+    const context = segments
+      .filter((o) => o !== seg && Math.abs(mid(o) - mid(seg)) < OUTLIER_CONTEXT_SECONDS)
+      .map((o) => o.detectedMidi)
+    if (context.length === 0 || Math.abs(seg.detectedMidi - median(context)) < OUTLIER_MIN_SEMITONES) return true
+    return f0Support(f0, seg.start, seg.end, seg.detectedMidi) >= OUTLIER_MAX_SUPPORT
+  })
+}
+
+/** Stable ids in time order, assigned once the note list is final. */
+export const numberNotes = (segments: NoteSegment[]) => segments.map((seg, i) => ({ ...seg, id: `note-${i}` }))
