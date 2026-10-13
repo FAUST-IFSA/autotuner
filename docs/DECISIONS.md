@@ -2,6 +2,62 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-14 (Phase 4)
+
+### Export renders offline through the playback path
+
+`renderTuned` runs the original through the same Signalsmith node settings, transpose schedule and
+`ShiftScheduler` as playback, in an `OfflineAudioContext`. The render pauses at each point where the next
+change can be queued. A project with no edits is exported untouched (bit-exact).
+
+Measured with `exportCheck` on the synthetic vocal, every other note moved:
+
+| Check | Result |
+| --- | --- |
+| Length | identical to the original |
+| Notes at target pitch | 28/28 within 20 cents (median pitch over each note; worst 14) |
+| Clicks at the 37 shift changes | none added (max 1.22× the original) |
+| Time offset | 2 ms |
+| Speed | 29× real time |
+
+On the 3-minute test vocal with 280 of 522 notes moved: WAV in 6 s (47 MB), MP3 in 16 s (4.2 MB).
+
+### WAV is 24-bit PCM at the original rate; MP3 is 192 kbps, at most 48 kHz
+
+LAME only supports up to 48 kHz, so higher-rate recordings are resampled to 48 kHz for MP3 only.
+
+### MP3 uses `@breezystack/lamejs`, isolated in its own worker chunk
+
+The maintained fork of lamejs (LGPL-3.0); the original's npm build breaks in bundlers. It is imported only by
+the MP3 worker. Shared constants are in `mp3Limits.ts`, because importing even a constant from `mp3.ts`
+pulled lamejs into the main bundle (caught in the dev server's network log). The production build shows the
+encoder only in `mp3.worker-*.js`. The package's LICENSE file is LAME's usage note, so the full LGPL-3.0
+and GPL-3.0 texts were added from gnu.org.
+
+### The Downloaded screen is an overlay; the editor stays mounted underneath
+
+"Back to editor" keeps undo history, selection and zoom. Editor shortcuts are off and playback pauses while
+the overlay is up. This replaces the scaffold's "Export corrections" JSON download with real audio export.
+
+### Recent files: IndexedDB via idb-keyval, edits stored separately
+
+Each project stores the original file, peaks and F0 under one key (written once) and the notes/edits under
+another, saved 0.8 s after editing stops. Saving an edit never rewrites the original audio. The list keeps 10
+projects, newest first, and each one has a delete button.
+
+Reopening skips decode-to-analysis: 0.26 s for the 53 s vocal, against about 9 s to analyse. Storage errors
+(e.g. quota) are logged and never block editing. The list sits under the drop zone on the upload screen,
+not behind a header button as the plan sketched.
+
+### Buttons don't keep focus after a mouse click
+
+Space and Enter stay play/pause and back-to-start after clicking any toolbar button. A button reached with
+Tab still responds to Space and Enter itself.
+
+### Fixed: the shortcut hint widened the page
+
+The hint now sits on its own line and is trimmed with an ellipsis; the full text is in its tooltip.
+
 ## 2026-10-14 (editor additions)
 
 ### "Tune Up" button

@@ -122,9 +122,14 @@ button:hover {
 }
 
 .hint {
-  margin-left: auto;
+  /* Its own line on narrow windows; trimmed instead of widening the page. */
+  flex: 1 1 100%;
+  min-width: 0;
   font-size: 12px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 
 .editor-tools {
@@ -170,9 +175,84 @@ button:disabled {
   font-size: 14px;
 }
 
-.export-note {
+.export-menu {
+  position: relative;
   margin-left: auto;
+}
+
+.export-progress {
+  color: #9aa1ab;
+  font-variant-numeric: tabular-nums;
+}
+
+.export-error {
+  margin: 0;
+}
+
+.export-options {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  background: #1b1d23;
+  border: 1px solid #30343d;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}
+
+.export-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.export-options button:hover {
+  background: #2a2e37;
+}
+
+.export-options small {
   color: #7d8590;
+  font-size: 12px;
+}
+
+.downloaded-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #0f1115;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+
+.downloaded-screen h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.saved-file {
+  margin: 0 0 16px;
+  color: #9aa1ab;
+  word-break: break-all;
+}
+
+.downloaded-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
 }
 
 .pitch-editor {
@@ -289,4 +369,64 @@ button:disabled {
   .tune-up {
     animation: none;
   }
+}
+
+.recent-files {
+  width: min(560px, 100%);
+  margin-top: 24px;
+}
+
+.recent-files h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: #9aa1ab;
+  font-weight: 600;
+}
+
+.recent-files ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recent-files li {
+  display: flex;
+  gap: 6px;
+}
+
+.recent-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.recent-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-meta,
+.recent-note {
+  color: #7d8590;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.recent-delete {
+  width: 34px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.recent-note {
+  margin: 8px 0 0;
 }

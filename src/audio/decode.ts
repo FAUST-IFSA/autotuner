@@ -11,12 +11,12 @@ export function getAudioContext(): AudioContext {
   return audioContext
 }
 
-async function decodeAudioFile(file: File): Promise<AudioBuffer> {
+export async function decodeAudioFile(file: Blob, name: string): Promise<AudioBuffer> {
   const data = await file.arrayBuffer()
   try {
     return await getAudioContext().decodeAudioData(data)
   } catch {
-    throw new Error(`Couldn't decode "${file.name}". Try a WAV, MP3, OGG or FLAC file.`)
+    throw new Error(`Couldn't decode "${name}". Try a WAV, MP3, OGG or FLAC file.`)
   }
 }
 
@@ -62,7 +62,7 @@ async function analyzeAudio(buffer: AudioBuffer, onProgress: (fraction: number) 
 }
 
 export async function loadAudioFile(file: File, onProgress: (fraction: number) => void = () => {}): Promise<Project> {
-  const buffer = await decodeAudioFile(file)
+  const buffer = await decodeAudioFile(file, file.name)
   if (buffer.duration > MAX_DURATION_SECONDS) {
     throw new Error(`"${file.name}" is longer than ${MAX_DURATION_SECONDS / 60} minutes.`)
   }
@@ -70,5 +70,5 @@ export async function loadAudioFile(file: File, onProgress: (fraction: number) =
   if (notes.length === 0) {
     throw new Error(`We couldn't find any singing in "${file.name}". Try a recording with a clear solo vocal.`)
   }
-  return { fileName: file.name, buffer, peaks, notes, f0 }
+  return { id: crypto.randomUUID(), file, fileName: file.name, buffer, peaks, notes, f0 }
 }

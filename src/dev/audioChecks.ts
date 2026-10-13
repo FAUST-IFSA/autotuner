@@ -6,6 +6,7 @@
 //   await m.loopCheck()        // a held note keeps looping until released
 //   await m.retriggerCheck()   // moving a held note a semitone restarts it at the new pitch
 //   await m.nudgeCheck()       // Up/Down plays the note once at its new pitch
+//   await m.exportCheck()      // export: length, pitch per note, clicks, timing offset
 import { AudioEngine } from '../audio/AudioEngine'
 import { getAudioContext } from '../audio/decode'
 import { buildSchedule } from '../audio/schedule'
@@ -312,4 +313,83 @@ export async function loopCheck() {
   engine.dispose()
   // 250 ms steps across 2.5 s: the note (with 50 ms pre-roll) is ~1.05 s, so steps 5-10 are loop repeats.
   return { heldLevels, quietSteps: heldLevels.filter((l) => l < 0.01).length, releasedLevel }
+}
+
+/**
+ * Export: renders the synthetic vocal with every other note moved (+2 / -3, snapped) and checks the file:
+ * same length as the original, each note at its target pitch, no added clicks at shift changes, and
+ * unshifted passages still lined up with the original (no time offset).
+ */
+export async function exportCheck() {
+  const { renderTuned } = await import('../audio/export')
+  const ctx = getAudioContext()
+  const { buffer, truth } = await loadFixture(ctx)
+  const notes: NoteSegment[] = truth.notes.map((n, i) => ({
+    id: `n${i}`,
+    start: n.startSec,
+    end: n.endSec,
+    detectedMidi: n.midi,
+    originalMidi: Math.round(n.midi),
+    midi: Math.round(n.midi) + (i % 2 === 0 ? 2 : -3),
+  }))
+  const t0 = performance.now()
+  const out = await renderTuned(buffer, notes)
+  const renderMs = performance.now() - t0
+  const sr = out.sampleRate
+  const mono = (b: AudioBuffer) => {
+    const x = new Float32Array(b.length)
+    for (let c = 0; c < b.numberOfChannels; c++) b.getChannelData(c).forEach((v, i) => (x[i] += v / b.numberOfChannels))
+    return x
+  }
+  const x = mono(out)
+  const original = mono(buffer)
+
+  // Median pitch over the middle 60% of each note (20 ms steps), so vibrato averages out.
+  const cents = notes.map((n) => {
+    const pitches: number[] = []
+    for (let t = n.start + 0.2 * (n.end - n.start); t < n.end - 0.2 * (n.end - n.start); t += 0.02) {
+      const mid = Math.round(t * sr)
+      const hz = detectPitch(x.subarray(mid - 1024, mid + 1024), sr)
+      if (hz !== null) pitches.push(hzToMidi(hz))
+    }
+    pitches.sort((a, b) => a - b)
+    return pitches.length ? Math.round((pitches[pitches.length >> 1] - n.midi) * 100) : NaN
+  })
+  const clickExcess = buildSchedule(notes)
+    .filter((c) => c.t > 0.3 && c.t < out.duration - 0.3)
+    .map((c) => +(clickRatio(x, sr, c.t) / Math.max(clickRatio(original, sr, c.t), 0.05)).toFixed(2))
+
+  // Alignment: pitch shifting keeps the loudness contour, so cross-correlate 1 ms RMS envelopes of the
+  // whole file against the original; the best lag is any time offset the render introduced.
+  const envelope = (y: Float32Array) => {
+    const hop = Math.round(sr / 1000)
+    return Float32Array.from({ length: Math.floor(y.length / hop) }, (_, k) => {
+      let sum = 0
+      for (let i = k * hop; i < (k + 1) * hop; i++) sum += y[i] * y[i]
+      return Math.sqrt(sum / hop)
+    })
+  }
+  const ea = envelope(original)
+  const eb = envelope(x)
+  let best = -Infinity
+  let bestLag = 0
+  for (let lag = -50; lag <= 50; lag++) {
+    let dot = 0
+    for (let k = 50; k < ea.length - 50; k++) dot += ea[k] * eb[k + lag]
+    if (dot > best) {
+      best = dot
+      bestLag = lag
+    }
+  }
+  return {
+    lengthMatches: out.length === buffer.length,
+    seconds: +out.duration.toFixed(2),
+    renderMs: Math.round(renderMs),
+    speedX: +(out.duration / (renderMs / 1000)).toFixed(1),
+    notesWithin20Cents: `${cents.filter((c) => Math.abs(c) < 20).length}/${notes.length}`,
+    centsErrorPerNote: cents,
+    clickExcessMax: Math.max(...clickExcess),
+    shiftChanges: clickExcess.length,
+    offsetMs: bestLag,
+  }
 }
