@@ -7,10 +7,18 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "node scripts/copy-assets.mjs",
+    "pretest": "node scripts/make-fixture.mjs --if-missing",
+    "test": "vitest run",
+    "licenses:check": "node scripts/licenses-check.mjs"
   },
   "dependencies": {
+    "@spotify/basic-pitch": "1.0.1",
+    "@tensorflow/tfjs": "4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "4.22.0",
     "konva": "^10.7.1",
+    "pitchy": "4.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-dropzone": "^20.1.3",
@@ -21,8 +29,13 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "license-checker-rseidelsohn": "5.0.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "5.0.3"
+  },
+  "overrides": {
+    "@tensorflow/tfjs": "4.22.0"
   }
 }

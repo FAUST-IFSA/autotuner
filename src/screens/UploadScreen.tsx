@@ -11,14 +11,16 @@ interface Props {
 
 export function UploadScreen({ onLoaded }: Props) {
   const [processing, setProcessing] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const onDropAccepted = useCallback(
     async ([file]: File[]) => {
       setError(null)
       setProcessing(true)
+      setProgress(0)
       try {
-        onLoaded(await loadAudioFile(file))
+        onLoaded(await loadAudioFile(file, setProgress))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Something went wrong loading that file.')
         setProcessing(false)
@@ -43,7 +45,7 @@ export function UploadScreen({ onLoaded }: Props) {
       <div {...getRootProps({ className: `dropzone${isDragActive ? ' active' : ''}${processing ? ' busy' : ''}` })}>
         <input {...getInputProps()} />
         {processing ? (
-          <p>Decoding and analysing audio…</p>
+          <p>Finding the notes in your vocal… {Math.round(progress * 100)}%</p>
         ) : (
           <>
             <p className="dropzone-title">{isDragActive ? 'Drop it here' : 'Drag an audio file here'}</p>
