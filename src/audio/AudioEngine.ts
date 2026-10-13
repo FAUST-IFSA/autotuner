@@ -1,6 +1,7 @@
 import SignalsmithStretch, { type StretchNode } from 'signalsmith-stretch'
 import type { NoteSegment } from '../types'
-import { ShiftScheduler, type ShiftChange, type TimedChange, buildSchedule, shiftAt } from './schedule'
+import { scheduleFades } from './crossfade'
+import { CROSSFADE_SECONDS, ShiftScheduler, type ShiftChange, type VoicePlan, buildSchedule, planVoices } from './schedule'
 
 /** Drag preview block size: ~21 ms node latency instead of ~58 ms (Phase 0, spike 1). */
 const PREVIEW_BLOCK_MS = 40
@@ -10,14 +11,20 @@ const PREVIEW_PRE_ROLL = 0.05
 const FADE_SECONDS = 0.012
 /** How often the playback node reports back; each report drives the just-in-time scheduler. */
 const TICK_SECONDS = 0.02
+/** After an edit during playback: time for the silent voice to settle on its new pitch before it's heard. */
+const REPLAN_SETTLE_SECONDS = 0.04
 
 /** Formant compensation keeps a shifted voice from sounding chipmunk-like or muffled. */
 export const VOICE = { formantCompensation: true, formantBaseHz: 0 } as const
 
-/** A playback node and a preview node, each behind its own fade gain. */
+/**
+ * Two playback nodes (crossfaded voices, see planVoices) behind per-voice gains and a shared output gain
+ * for start/stop fades, plus the preview node behind its own gain.
+ */
 interface Voices {
-  player: StretchNode
-  playerGain: GainNode
+  players: [StretchNode, StretchNode]
+  voiceGains: [GainNode, GainNode]
+  bus: GainNode
   previewer: StretchNode
   previewGain: GainNode
   outputLatency: number
@@ -25,7 +32,7 @@ interface Voices {
 }
 
 /**
- * Idle node pairs per AudioContext. Signalsmith's worklet processor always reports itself active, so a
+ * Idle node sets per AudioContext. Signalsmith's worklet processor always reports itself active, so a
  * node is never garbage collected and keeps running even when disconnected. Creating nodes per
  * recording would leak a full copy of the audio and audio-thread CPU each time, so nodes are reused.
  */
@@ -36,25 +43,32 @@ async function acquireVoices(ctx: AudioContext): Promise<Voices> {
   if (reused) return reused
   // Always stereo: mono recordings are played on both channels by the node itself.
   const options = { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] }
-  const [player, previewer] = await Promise.all([SignalsmithStretch(ctx, options), SignalsmithStretch(ctx, options)])
+  const [a, b, previewer] = await Promise.all([
+    SignalsmithStretch(ctx, options),
+    SignalsmithStretch(ctx, options),
+    SignalsmithStretch(ctx, options),
+  ])
   await previewer.configure({ blockMs: PREVIEW_BLOCK_MS })
-  const playerGain = new GainNode(ctx, { gain: 0 })
+  const bus = new GainNode(ctx, { gain: 0 })
+  bus.connect(ctx.destination)
+  const voiceGains: [GainNode, GainNode] = [new GainNode(ctx, { gain: 1 }), new GainNode(ctx, { gain: 0 })]
+  a.connect(voiceGains[0]).connect(bus)
+  b.connect(voiceGains[1]).connect(bus)
   const previewGain = new GainNode(ctx, { gain: 0 })
-  player.connect(playerGain).connect(ctx.destination)
   previewer.connect(previewGain).connect(ctx.destination)
   // latency() is input + output latency; output latency is half (Phase 0, spike 2).
-  const outputLatency = (await player.latency()) / 2
+  const outputLatency = (await a.latency()) / 2
   const previewOutputLatency = (await previewer.latency()) / 2
-  return { player, playerGain, previewer, previewGain, outputLatency, previewOutputLatency }
+  return { players: [a, b], voiceGains, bus, previewer, previewGain, outputLatency, previewOutputLatency }
 }
 
 function releaseVoices(ctx: AudioContext, voices: Voices) {
-  void voices.player.setUpdateInterval(TICK_SECONDS)
+  void voices.players[0].setUpdateInterval(TICK_SECONDS)
   const pool = idleVoices.get(ctx) ?? []
   idleVoices.set(ctx, pool)
-  // Free the audio once the fade-out has finished, then make the pair available again.
+  // Free the audio once the fade-out has finished, then make the set available again.
   window.setTimeout(() => {
-    void voices.player.dropBuffers()
+    for (const player of voices.players) void player.dropBuffers()
     void voices.previewer.dropBuffers()
     pool.push(voices)
   }, 100)
@@ -76,7 +90,7 @@ export class AudioEngine {
   onPlayingChange: (playing: boolean) => void = () => {}
 
   private schedule: ShiftChange[] = [{ t: 0, semitones: 0 }]
-  private scheduler: ShiftScheduler
+  private readonly schedulers: [ShiftScheduler, ShiftScheduler]
   private playing = false
   /** Input position (seconds) where the current playback started, and the context time it is heard from. */
   private from = 0
@@ -92,46 +106,44 @@ export class AudioEngine {
   private previewEndTimer: number | undefined
   private resumeAfterPreview = false
   private disposed = false
-  private voices: Voices | null = null
-  private previewOutputLatency = 0.02
   private readonly ctx: AudioContext
   private readonly buffer: AudioBuffer
-  private readonly player: StretchNode
-  private readonly playerGain: GainNode
+  private readonly voices: Voices
+  private readonly players: [StretchNode, StretchNode]
+  private readonly voiceGains: [GainNode, GainNode]
+  private readonly bus: GainNode
   private readonly previewer: StretchNode
   private readonly previewGain: GainNode
   private readonly outputLatency: number
+  private readonly previewOutputLatency: number
 
-  private constructor(
-    ctx: AudioContext,
-    buffer: AudioBuffer,
-    player: StretchNode,
-    playerGain: GainNode,
-    previewer: StretchNode,
-    previewGain: GainNode,
-    outputLatency: number,
-  ) {
+  private constructor(ctx: AudioContext, buffer: AudioBuffer, voices: Voices) {
     this.ctx = ctx
     this.buffer = buffer
-    this.player = player
-    this.playerGain = playerGain
-    this.previewer = previewer
-    this.previewGain = previewGain
-    this.outputLatency = outputLatency
-    this.scheduler = new ShiftScheduler((change, outputTime) => {
-      void player.schedule({ output: change.output, outputTime, semitones: change.semitones, active: change.active ?? true })
-    }, outputLatency)
+    this.voices = voices
+    this.players = voices.players
+    this.voiceGains = voices.voiceGains
+    this.bus = voices.bus
+    this.previewer = voices.previewer
+    this.previewGain = voices.previewGain
+    this.outputLatency = voices.outputLatency
+    this.previewOutputLatency = voices.previewOutputLatency ?? 0.02
+    this.schedulers = this.players.map(
+      (player) =>
+        new ShiftScheduler((change, outputTime) => {
+          void player.schedule({ output: change.output, outputTime, semitones: change.semitones })
+        }, this.outputLatency),
+    ) as [ShiftScheduler, ShiftScheduler]
   }
 
   static async create(ctx: AudioContext, buffer: AudioBuffer): Promise<AudioEngine> {
     const voices = await acquireVoices(ctx)
-    const channels = copyChannels(buffer)
-    await voices.player.addBuffers(channels, channels.map((c) => c.buffer))
-    const { player, playerGain, previewer, previewGain, outputLatency } = voices
-    const engine = new AudioEngine(ctx, buffer, player, playerGain, previewer, previewGain, outputLatency)
-    engine.voices = voices
-    engine.previewOutputLatency = voices.previewOutputLatency ?? engine.previewOutputLatency
-    await player.setUpdateInterval(TICK_SECONDS, () => engine.tick())
+    for (const player of voices.players) {
+      const channels = copyChannels(buffer)
+      await player.addBuffers(channels, channels.map((c) => c.buffer))
+    }
+    const engine = new AudioEngine(ctx, buffer, voices)
+    await voices.players[0].setUpdateInterval(TICK_SECONDS, () => engine.tick())
     return engine
   }
 
@@ -150,16 +162,33 @@ export class AudioEngine {
     return Math.min(this.buffer.duration, Math.max(this.from, this.from + heard - this.startOutput))
   }
 
-  /** Call whenever notes change; playback picks up the new shifts within ~60 ms. */
+  /**
+   * Call whenever notes change. During playback the silent voice takes the new pitch at once and the
+   * sound crossfades over to it ~60 ms later (the node's minimum lead time), so edits never jump the
+   * pitch of the voice being heard.
+   */
   setNotes(notes: NoteSegment[]) {
     this.schedule = buildSchedule(notes)
     if (!this.playing) return
-    // Re-plan from the earliest moment the node can still change: now plus its output latency.
-    const at = this.ctx.currentTime + this.outputLatency + 0.005
-    const input = this.from + (at - this.startOutput)
-    void this.player.schedule({ output: at, outputTime: at - 0.001, semitones: shiftAt(this.schedule, input) })
-    this.scheduler.reset(this.timedChanges(), at)
-    this.scheduler.tick(this.ctx.currentTime)
+    const now = this.ctx.currentTime
+    const switchAt = now + this.outputLatency + REPLAN_SETTLE_SECONDS + CROSSFADE_SECONDS / 2
+    const plan = planVoices(this.schedule, this.inputAt(switchAt))
+    // The voice heard now keeps its pitch until it has faded out; the other one takes over.
+    const heard = this.voiceGains[0].gain.value >= this.voiceGains[1].gain.value ? 0 : 1
+    const incoming = heard === 0 ? 1 : 0
+    for (const gain of this.voiceGains) {
+      gain.gain.cancelScheduledValues(now)
+      gain.gain.setValueAtTime(gain.gain.value, now)
+    }
+    const changeAt = now + this.outputLatency + 0.005
+    void this.players[incoming].schedule({ output: changeAt, semitones: plan.initial[0] })
+    // Plan voice 0 (the segment at switchAt) is the incoming physical voice.
+    this.applyPlan({ ...plan, fades: [{ t: this.inputAt(switchAt), to: 0 }, ...plan.fades] }, incoming, changeAt, {
+      // The outgoing voice gets its first pitch for the new plan once it's silent. Its queue is
+      // replanned from now, dropping any change the old plan had queued for when it would have faded.
+      change: { t: this.inputAt(switchAt) + CROSSFADE_SECONDS / 2, semitones: plan.initial[1] },
+      from: now,
+    })
   }
 
   async play(from = this.position) {
@@ -170,22 +199,21 @@ export class AudioEngine {
     this.from = from >= this.buffer.duration - 0.05 ? 0 : from
     // Schedule ahead by the node's output latency so it starts exactly at `from`.
     this.startOutput = this.ctx.currentTime + this.outputLatency + 0.02
-    void this.player.schedule({
-      active: true,
-      input: this.from,
-      output: this.startOutput,
-      semitones: shiftAt(this.schedule, this.from),
-      ...VOICE,
+    const plan = planVoices(this.schedule, this.from)
+    this.players.forEach((player, v) => {
+      void player.schedule({ active: true, input: this.from, output: this.startOutput, semitones: plan.initial[v], ...VOICE })
+      const gain = this.voiceGains[v].gain
+      gain.cancelScheduledValues(this.startOutput)
+      gain.setValueAtTime(v === 0 ? 1 : 0, this.startOutput)
     })
-    const gain = this.playerGain.gain
+    this.applyPlan(plan, 0, this.startOutput)
+    const gain = this.bus.gain
     // Keep any fade-out from halt() (seeking while playing); start the fade-in after it.
     gain.cancelScheduledValues(this.startOutput)
     gain.setValueAtTime(0, this.startOutput)
     gain.linearRampToValueAtTime(1, this.startOutput + FADE_SECONDS)
-    this.scheduler.reset(this.timedChanges(), this.startOutput)
-    this.scheduler.tick(this.ctx.currentTime)
     this.playing = true
-    // Worklet time reports keep the scheduler fed; this timer covers the end of the file and hidden tabs.
+    // Worklet time reports keep the schedulers fed; this timer covers the end of the file and hidden tabs.
     this.ticker = window.setInterval(() => this.tick(), 50)
     this.onPlayingChange(true)
   }
@@ -321,34 +349,56 @@ export class AudioEngine {
     this.resumeAfterPreview = false
     this.halt()
     this.stopPreview()
-    if (this.voices) releaseVoices(this.ctx, this.voices)
+    releaseVoices(this.ctx, this.voices)
   }
 
   private halt() {
     window.clearInterval(this.ticker)
     this.playing = false
     const now = this.ctx.currentTime
-    const gain = this.playerGain.gain
+    const gain = this.bus.gain
     gain.cancelScheduledValues(0)
     gain.setValueAtTime(gain.value, now)
     gain.linearRampToValueAtTime(0, now + FADE_SECONDS)
-    this.scheduler.reset([], now)
-    void this.player.stop(now + FADE_SECONDS + 0.01)
+    for (const v of [0, 1] as const) {
+      this.schedulers[v].reset([], now)
+      this.voiceGains[v].gain.cancelScheduledValues(now + FADE_SECONDS)
+      void this.players[v].stop(now + FADE_SECONDS + 0.01)
+    }
   }
 
-  /** Schedule changes after the playback start, on the context clock, plus a stop at the end. */
-  private timedChanges(): TimedChange[] {
+  /** Position in the original audio that is heard at context time `t` (playback runs at rate 1). */
+  private inputAt(t: number) {
+    return this.from + (t - this.startOutput)
+  }
+
+  /**
+   * Hands a voice plan to the two voices: plan voice 0 plays on physical voice `first`. Pitch changes go
+   * to each voice's just-in-time scheduler and crossfades onto the voice gains, from `at` on.
+   */
+  private applyPlan(plan: VoicePlan, first: 0 | 1, at: number, outgoing?: { change: ShiftChange; from: number }) {
     const toOutput = (t: number) => this.startOutput + (t - this.from)
-    const changes: TimedChange[] = this.schedule
-      .filter((c) => c.t > this.from)
-      .map((c) => ({ output: toOutput(c.t), semitones: c.semitones }))
-    changes.push({ output: toOutput(this.buffer.duration), semitones: 0, active: false })
-    return changes
+    const physical = (pv: 0 | 1) => (pv === 0 ? first : first === 0 ? 1 : 0) as 0 | 1
+    scheduleFades(
+      [this.voiceGains[physical(0)].gain, this.voiceGains[physical(1)].gain],
+      plan,
+      toOutput,
+      at - CROSSFADE_SECONDS,
+    )
+    for (const pv of [0, 1] as const) {
+      const changes = [...(pv === 1 && outgoing ? [outgoing.change] : []), ...plan.changes[pv]]
+      const scheduler = this.schedulers[physical(pv)]
+      scheduler.reset(
+        changes.map((c) => ({ output: toOutput(c.t), semitones: c.semitones })),
+        pv === 1 && outgoing ? outgoing.from : at,
+      )
+      scheduler.tick(this.ctx.currentTime)
+    }
   }
 
   private tick() {
     if (!this.playing) return
-    this.scheduler.tick(this.ctx.currentTime)
+    for (const scheduler of this.schedulers) scheduler.tick(this.ctx.currentTime)
     if (this.currentTime >= this.buffer.duration) {
       this.position = this.buffer.duration
       this.halt()

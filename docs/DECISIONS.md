@@ -2,6 +2,55 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-14 (pops on fast, heavily corrected vocals)
+
+### Diagnosis
+
+Measured on "fragments of a bruised love" (fast vocal, 364 notes) with `popScan` / `stressCheck`:
+
+- **The stretcher alone adds nothing.** A render with no shift changes had 0 new transients.
+- **Pitch changes cause the pops.** Tune Up gave 8 new transients over 3× the original's high-frequency
+  energy (worst 12×), and Tune Up with ±2 moves gave 15 (worst 17×). Most sat within 40 ms of a shift
+  change.
+- **Where the pops come from:**
+  - changing the transpose of a stretcher while it is sounding smears the jump across its STFT window,
+    and on fast vocals that lands mid-syllable (e.g. a release at 7.6 s)
+  - triple flips around tiny segments, e.g. an 11 ms return to 0 between two shifted notes
+  - 22 of 416 segments were under 40 ms
+- **Clipping is real but not the pops.** The render peaked at 1.093 (the original at 0.959), giving 17
+  clipped samples, and none of them registered as pops.
+
+### Fix: two crossfaded stretcher voices
+
+`planVoices` alternates schedule segments between two Signalsmith nodes. A voice gets its next pitch
+right after it has faded out, so no audible voice ever changes pitch. A 20 ms linear (equal-gain)
+crossfade at each boundary hands the sound over; the voices carry the same performance, so equal-gain
+keeps the level steady.
+
+The same code runs in export (`renderTuned`) and playback (`AudioEngine`). An edit during playback sets
+the silent voice to the new pitch and crossfades to it about 60 ms later, so there's no restart.
+
+The schedule also stopped flipping back to 0 for gaps under 80 ms (was 30 ms), and collapses segments
+under 30 ms (was 6 ms).
+
+| Result | Before | After |
+| --- | --- | --- |
+| New transients, Tune Up | 8 (worst 12×) | 1 (3.1×) |
+| New transients, Tune Up + ±2 | 15 (worst 17×) | 0 |
+| Live playback, 25 s with three edits mid-playback | — | 1 (3.0×, the same spot as the export), none at the edits |
+| Export check (pitch, clicks, timing, length) | — | 28/28 within 20 cents, clicks 1.18×, 1 ms offset, same length |
+| Playback check | — | 13/13, clicks 1.29× |
+
+Cost: twice the stretcher CPU for playback and export (export about 15× real time instead of 29×). Each
+playback voice holds a full copy of the audio in its worklet: about 63 MB per voice for 3 minutes of
+stereo.
+
+### Export clipping guard
+
+If a render's peak exceeds 0.995, the whole file is turned down just enough. There's no limiter, so the
+sound is otherwise identical, and files within range are untouched. Playback is not limited; the 17
+clipped samples were inaudible in the scan.
+
 ## 2026-10-14 (Phase 4)
 
 ### Export renders offline through the playback path
