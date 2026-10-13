@@ -98,8 +98,9 @@ button:hover {
 
 .editor-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 8px 16px;
   padding: 10px 16px;
   border-bottom: 1px solid #30343d;
   font-size: 14px;
@@ -122,6 +123,28 @@ button:hover {
 
 .hint {
   margin-left: auto;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #7f9cf5;
+  outline-offset: 2px;
 }
 
 button.primary {
@@ -156,4 +179,6 @@ button:disabled {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  touch-action: none;
+  user-select: none;
 }

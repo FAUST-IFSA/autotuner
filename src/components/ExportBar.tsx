@@ -1,3 +1,4 @@
+import { isEdited, shiftOf } from '../editor/edits'
 import type { Project } from '../types'
 
 interface Props {
@@ -6,13 +7,14 @@ interface Props {
 
 function downloadCorrections(project: Project) {
   const corrections = project.notes
-    .filter((n) => n.midi !== n.originalMidi)
+    .filter(isEdited)
     .map((n) => ({
       start: n.start,
       end: n.end,
       originalMidi: n.originalMidi,
-      targetMidi: n.midi,
-      semitones: n.midi - n.originalMidi,
+      detectedMidi: +n.detectedMidi.toFixed(3),
+      targetMidi: +n.midi.toFixed(3),
+      semitones: +shiftOf(n).toFixed(3),
     }))
   const json = JSON.stringify(
     { fileName: project.fileName, sampleRate: project.buffer.sampleRate, corrections },
@@ -28,7 +30,7 @@ function downloadCorrections(project: Project) {
 }
 
 export function ExportBar({ project }: Props) {
-  const changed = project.notes.filter((n) => n.midi !== n.originalMidi).length
+  const changed = project.notes.filter(isEdited).length
 
   return (
     <footer className="export-bar">
