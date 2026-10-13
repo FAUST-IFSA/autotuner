@@ -67,7 +67,7 @@ export function UploadScreen({ onLoaded }: Props) {
         ) : (
           <>
             <p className="dropzone-title">{isDragActive ? 'Drop it here' : 'Drag an audio file here'}</p>
-            <p className="dropzone-hint">or click to browse · WAV, MP3, OGG, FLAC · up to 10 minutes</p>
+            <p className="dropzone-hint">or click to browse · WAV, MP3, OGG, FLAC</p>
           </>
         )}
       </div>

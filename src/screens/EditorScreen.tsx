@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAudioEngine } from '../audio/useAudioEngine'
+import { ControlsMenu } from '../components/ControlsMenu'
 import { ExportBar } from '../components/ExportBar'
 import { Transport } from '../components/Transport'
 import {
@@ -221,12 +222,7 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
           </button>
         </div>
         {audioError && <span className="error">Playback isn't available: {audioError}</span>}
-        <span
-          className="hint"
-          title="Space play · Enter to start · < > previous/next note · ←/→ select notes · Drag notes to retune (Alt for fine steps) · Drag empty space to select · ⌘/Ctrl + scroll or ⌘/Ctrl + ←/→ to zoom"
-        >
-          Space play · Enter to start · &lt; &gt; previous/next note · ←/→ select notes · Drag notes to retune (Alt for fine steps) · Drag empty space to select · ⌘/Ctrl + scroll or ⌘/Ctrl + ←/→ to zoom
-        </span>
+        <ControlsMenu />
       </header>
       <PitchEditor
         peaks={project.peaks}
