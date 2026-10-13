@@ -2,6 +2,33 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-13 (Phase 3 revisions, from Aidan's review)
+
+### Clicking a note plays it on a loop until release, even during playback
+
+This supersedes "Drag preview only plays the dragged note ... the preview is skipped while playback is
+running". Now a press on a note always starts the looped preview at once. If the song was playing, it pauses
+and resumes from the same spot on release, with any pitch change applied. Moving the note while holding
+changes the looped pitch live. Verified in the app: paused at 0.82 s, resumed from 0.84 s.
+
+### The view follows the playhead only until the user scrolls or zooms
+
+Following is page-by-page: when the playhead leaves the view, the view jumps so it sits at 10% from the
+left. Any wheel scroll or zoom turns following off, and Play or any jump (Enter, arrows, ruler click, skip
+buttons) turns it back on.
+
+### Arrow keys move the playhead between notes; Enter returns to the start
+
+This supersedes Phase 2's "Left/Right step the selection". ← and → jump the playhead to the previous/next
+note start. Rewind has 150 ms of slack, so pressing it at a note's start goes to the note before. Up/Down
+still move selected notes.
+
+### Transport: back to start, rewind, play/pause, fast forward
+
+Styled after the reference screenshot (dark segmented buttons, green play icon). Rewind and fast forward do
+the same as ← and →. Space and Enter are handled at the window level and their default is prevented, so a
+focused transport button never fires twice.
+
 ## 2026-10-13 (Phase 3)
 
 ### Signalsmith nodes are pooled and reused, never discarded

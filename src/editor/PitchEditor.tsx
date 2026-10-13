@@ -1,5 +1,5 @@
 import type { KonvaEventObject } from 'konva/lib/Node'
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Group, Layer, Rect, Stage } from 'react-konva'
 import type { F0Curve as Curve, NoteSegment, Peaks } from '../types'
@@ -128,8 +128,15 @@ export function PitchEditor({
     }
   }
 
+  // The view chases the playhead until the user scrolls or zooms; playing or jumping turns it back on.
+  const following = useRef(true)
+  useEffect(() => {
+    following.current = true
+  }, [playing, playheadRevision])
+
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
+    following.current = false
     const { deltaX, deltaY, ctrlKey, metaKey, shiftKey } = e.evt
 
     if (ctrlKey || metaKey) {
@@ -322,6 +329,7 @@ export function PitchEditor({
             height={height}
             playing={playing}
             revision={playheadRevision}
+            shouldFollow={() => following.current}
             onFollow={(t) => setScrollX(clamp(t * pxPerSec - viewWidth * 0.1, 0, maxScrollX))}
           />
         </Stage>

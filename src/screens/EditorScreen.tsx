@@ -52,7 +52,23 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
     },
     [engine],
   )
-  // Hearing the dragged note on its own only makes sense when playback isn't already running.
+  /** Next (or previous) note start from the playhead: what the arrow keys and skip buttons jump to. */
+  const skip = useCallback(
+    (direction: 1 | -1) => {
+      if (!engine) return
+      const now = engine.currentTime
+      const target =
+        direction === 1
+          ? notes.find((n) => n.start > now + 0.01)?.start
+          : // A little slack so pressing rewind at a note's start goes to the note before it.
+            notes.findLast((n) => n.start < now - 0.15)?.start
+      seek(target ?? (direction === 1 ? now : 0))
+    },
+    [engine, notes, seek],
+  )
+  const toStart = useCallback(() => seek(0), [seek])
+
+  // Clicking a note plays it on a loop until release (pausing and resuming playback around it).
   const grab = useCallback((note: NoteSegment) => void engine?.startPreview(note), [engine])
   const grabShift = useCallback((semitones: number) => engine?.updatePreview(semitones), [engine])
   const release = useCallback(() => engine?.stopPreview(), [engine])
@@ -102,22 +118,16 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
       else if (e.key === 'Escape') setSelection(new Set())
       else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && selection.size > 0) {
         apply(nudgeNotes(notes, selection, e.key === 'ArrowUp' ? 1 : -1, snap && !e.altKey))
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        // Notes are in time order: step to the neighbour of the selection.
-        const indices = notes.flatMap((n, i) => (selection.has(n.id) ? [i] : []))
-        const next =
-          e.key === 'ArrowRight'
-            ? indices.length ? Math.min(notes.length - 1, indices[indices.length - 1] + 1) : 0
-            : indices.length ? Math.max(0, indices[0] - 1) : notes.length - 1
-        if (notes[next]) setSelection(new Set([notes[next].id]))
-      } else if ((e.key === 'Backspace' || e.key === 'Delete') && selection.size > 0) {
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') skip(e.key === 'ArrowRight' ? 1 : -1)
+      else if (e.key === 'Enter') toStart()
+      else if ((e.key === 'Backspace' || e.key === 'Delete') && selection.size > 0) {
         apply(resetNotes(notes, selection))
       } else return
       e.preventDefault()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [notes, selection, snap, apply, step, togglePlay])
+  }, [notes, selection, snap, apply, step, togglePlay, skip, toStart])
 
   return (
     <main className="editor-screen">
@@ -132,6 +142,9 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
           duration={project.buffer.duration}
           getTime={getTime}
           onToggle={togglePlay}
+          onToStart={toStart}
+          onRewind={() => skip(-1)}
+          onFastForward={() => skip(1)}
         />
         <span className="file-name">{project.fileName}</span>
         <span className="file-meta">
@@ -160,7 +173,7 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
         </div>
         {audioError && <span className="error">Playback isn't available: {audioError}</span>}
         <span className="hint">
-          Space to play · Drag notes to retune (Alt for fine steps) · Drag empty space to select · Ctrl + scroll to zoom
+          Space play · Enter to start · ←/→ previous/next note · Drag notes to retune (Alt for fine steps) · Drag empty space to select · Ctrl + scroll to zoom
         </span>
       </header>
       <PitchEditor

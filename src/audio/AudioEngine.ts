@@ -81,6 +81,8 @@ export class AudioEngine {
   private position = 0
   private ticker: number | undefined
   private previewing = false
+  private previewSemitones = 0
+  private resumeAfterPreview = false
   private disposed = false
   private voices: Voices | null = null
   private readonly ctx: AudioContext
@@ -152,6 +154,7 @@ export class AudioEngine {
 
   async play(from = this.position) {
     if (this.disposed) return
+    this.resumeAfterPreview = false
     await this.ctx.resume()
     if (this.playing) this.halt()
     this.from = from >= this.buffer.duration - 0.05 ? 0 : from
@@ -191,11 +194,19 @@ export class AudioEngine {
     else this.position = t
   }
 
-  /** Starts looping one note at its current shift (call on drag start). */
+  /**
+   * Plays one note on a loop from the moment it's grabbed until it's released. If the song is playing,
+   * playback pauses for the preview and resumes from the same spot on release.
+   */
   async startPreview(note: NoteSegment) {
-    if (this.disposed || this.playing) return
-    await this.ctx.resume()
+    if (this.disposed) return
+    if (this.playing) {
+      this.pause()
+      this.resumeAfterPreview = true
+    }
     this.previewing = true
+    this.previewSemitones = note.midi - note.detectedMidi
+    await this.ctx.resume()
     const from = Math.max(0, note.start - PREVIEW_PRE_ROLL)
     const slice = copyChannels(this.buffer, from, note.end)
     await this.previewer.dropBuffers()
@@ -208,7 +219,8 @@ export class AudioEngine {
       output: now,
       loopStart: 0,
       loopEnd: slice[0].length / this.buffer.sampleRate,
-      semitones: note.midi - note.detectedMidi,
+      // Any pitch the note was moved to while the audio was loading.
+      semitones: this.previewSemitones,
       ...VOICE,
     })
     const gain = this.previewGain.gain
@@ -217,26 +229,35 @@ export class AudioEngine {
     gain.linearRampToValueAtTime(1, now + FADE_SECONDS)
   }
 
-  /** New shift for the note being previewed; heard within ~75 ms. */
+  /** New shift for the note being previewed; heard within ~60 ms. */
   updatePreview(semitones: number) {
-    if (this.previewing) void this.previewer.schedule({ semitones })
+    if (!this.previewing) return
+    this.previewSemitones = semitones
+    void this.previewer.schedule({ semitones })
   }
 
+  /** Ends the preview, and resumes playback if the preview interrupted it. */
   stopPreview() {
-    if (!this.previewing) return
-    this.previewing = false
-    const now = this.ctx.currentTime
-    const gain = this.previewGain.gain
-    gain.cancelScheduledValues(0)
-    gain.setValueAtTime(gain.value, now)
-    gain.linearRampToValueAtTime(0, now + FADE_SECONDS)
-    void this.previewer.stop(now + FADE_SECONDS + 0.01)
+    if (this.previewing) {
+      this.previewing = false
+      const now = this.ctx.currentTime
+      const gain = this.previewGain.gain
+      gain.cancelScheduledValues(0)
+      gain.setValueAtTime(gain.value, now)
+      gain.linearRampToValueAtTime(0, now + FADE_SECONDS)
+      void this.previewer.stop(now + FADE_SECONDS + 0.01)
+    }
+    if (this.resumeAfterPreview) {
+      this.resumeAfterPreview = false
+      void this.play(this.position)
+    }
   }
 
   /** Stops sound and hands the nodes back to the pool for the next recording. */
   dispose() {
     if (this.disposed) return
     this.disposed = true
+    this.resumeAfterPreview = false
     this.halt()
     this.stopPreview()
     if (this.voices) releaseVoices(this.ctx, this.voices)
