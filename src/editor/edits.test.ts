@@ -6,6 +6,7 @@ import {
   effective,
   emptyHistory,
   isEdited,
+  isOffPitch,
   nudgeNotes,
   record,
   redo,
@@ -13,6 +14,7 @@ import {
   shiftNotes,
   tuningAmount,
   tuningColor,
+  tuneUp,
   undo,
 } from './edits'
 
@@ -119,5 +121,21 @@ describe('tuning colour', () => {
     expect(tuningAmount(-50)).toBe(0)
     expect(tuningAmount(30)).toBeCloseTo(0.5)
     expect(tuningColor(0)).toBe('rgba(63, 191, 134, 1)')
+  })
+})
+
+describe('tuneUp', () => {
+  it('moves only off-pitch notes (more than 10 cents out) to their nearest semitone', () => {
+    const notes = [note('a', 59.7), note('b', 62.08), note('c', 64.45), note('d', 60.2, 61.3)]
+    expect(notes.map(isOffPitch)).toEqual([true, false, true, true])
+    expect(tuneUp(notes)).toEqual([
+      { id: 'a', from: 59.7, to: 60 },
+      { id: 'c', from: 64.45, to: 64 },
+      { id: 'd', from: 61.3, to: 61 },
+    ])
+  })
+
+  it('does nothing when everything is in tune', () => {
+    expect(tuneUp([note('a', 60.05), note('b', 62, 64)])).toEqual([])
   })
 })

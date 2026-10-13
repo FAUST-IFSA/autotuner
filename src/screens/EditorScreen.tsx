@@ -9,10 +9,12 @@ import {
   effective,
   emptyHistory,
   isEdited,
+  isOffPitch,
   nudgeNotes,
   record,
   redo,
   resetNotes,
+  tuneUp,
   undo,
 } from '../editor/edits'
 import { PitchEditor } from '../editor/PitchEditor'
@@ -102,6 +104,8 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
     [history, onNotesChange],
   )
 
+  const offPitchCount = notes.filter(isOffPitch).length
+
   const resetTarget = selection.size > 0 ? selection : new Set(notes.map((n) => n.id))
   const canReset = notes.some((n) => resetTarget.has(n.id) && isEdited(n))
 
@@ -122,7 +126,7 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
         // Play the (first) moved note again at its new pitch.
         const moved = notes.find((n) => n.id === edit[0]?.id)
         if (moved) void engine?.playNote({ ...moved, midi: edit[0].to })
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      } else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         // Notes are in time order: step to the neighbour of the selection.
         const indices = notes.flatMap((n, i) => (selection.has(n.id) ? [i] : []))
         const next =
@@ -167,6 +171,19 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
           {selection.size > 0 && ` · ${selection.size} selected`}
         </span>
         <div className="editor-tools">
+          <button
+            type="button"
+            className="tune-up"
+            onClick={() => apply(tuneUp(notes))}
+            disabled={offPitchCount === 0}
+            title={
+              offPitchCount === 0
+                ? 'Every note is within 10 cents of a semitone'
+                : `Move ${offPitchCount} off-pitch ${offPitchCount === 1 ? 'note' : 'notes'} to the nearest semitone`
+            }
+          >
+            Tune Up
+          </button>
           <label className="toggle">
             <input type="checkbox" checked={snap} onChange={(e) => setSnap(e.target.checked)} />
             Snap to semitone
@@ -188,7 +205,7 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
         </div>
         {audioError && <span className="error">Playback isn't available: {audioError}</span>}
         <span className="hint">
-          Space play · Enter to start · &lt; &gt; previous/next note · ←/→ select notes · Drag notes to retune (Alt for fine steps) · Drag empty space to select · Ctrl + scroll to zoom
+          Space play · Enter to start · &lt; &gt; previous/next note · ←/→ select notes · Drag notes to retune (Alt for fine steps) · Drag empty space to select · ⌘/Ctrl + scroll or ⌘/Ctrl + ←/→ to zoom
         </span>
       </header>
       <PitchEditor

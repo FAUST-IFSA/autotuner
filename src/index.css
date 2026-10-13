@@ -236,3 +236,57 @@ button:disabled {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* "Tune Up": the one coloured control, with a light running around its edge. */
+@property --tune-up-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.tune-up {
+  position: relative;
+  padding: 6px 16px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  background:
+    linear-gradient(135deg, #2fbf7f, #1e8a5a) padding-box,
+    conic-gradient(from var(--tune-up-angle), #1e8a5a 0deg, #b8ffe0 50deg, #1e8a5a 110deg, #1e8a5a 360deg) border-box;
+  box-shadow: 0 0 12px rgba(63, 191, 134, 0.35);
+  animation: tune-up-spin 2.4s linear infinite;
+}
+
+.tune-up:hover:not(:disabled) {
+  background:
+    linear-gradient(135deg, #3fd08f, #23a066) padding-box,
+    conic-gradient(from var(--tune-up-angle), #23a066 0deg, #d4ffef 50deg, #23a066 110deg, #23a066 360deg) border-box;
+  box-shadow: 0 0 16px rgba(63, 191, 134, 0.55);
+}
+
+.tune-up:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.tune-up:disabled {
+  animation: none;
+  background: #22252c padding-box;
+  border-color: #30343d;
+  box-shadow: none;
+  color: #7d8590;
+}
+
+@keyframes tune-up-spin {
+  to {
+    --tune-up-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tune-up {
+    animation: none;
+  }
+}

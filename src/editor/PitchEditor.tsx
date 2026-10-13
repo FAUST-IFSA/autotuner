@@ -46,6 +46,11 @@ interface Props {
   onRelease: () => void
 }
 
+/** Ctrl/Cmd + scroll zoom per unit of wheel delta (was 0.002, which felt slow). */
+const WHEEL_ZOOM_SPEED = 0.004
+/** Cmd/Ctrl + arrow zoom per press. */
+const KEY_ZOOM_STEP = 1.5
+
 /** Pointer travel (px) before a press on a note becomes a drag. */
 const DRAG_THRESHOLD = 3
 
@@ -134,6 +139,31 @@ export function PitchEditor({
     following.current = true
   }, [playing, playheadRevision])
 
+  /** Zooms time by `factor`, keeping the time under `anchorX` (px into the grid) where it is. */
+  const zoomBy = (factor: number, anchorX: number) => {
+    following.current = false
+    const anchorTime = (sx + anchorX) / pxPerSec
+    const nextPxPerSec = clamp(pxPerSec * factor, MIN_PX_PER_SEC, MAX_PX_PER_SEC)
+    setZoom(nextPxPerSec)
+    setScrollX(anchorTime * nextPxPerSec - anchorX)
+  }
+
+  // Cmd/Ctrl + Right zooms in, Cmd/Ctrl + Left zooms out, around the middle of the view.
+  const keyZoom = useRef<(factor: number) => void>(() => {})
+  useEffect(() => {
+    keyZoom.current = (factor) => zoomBy(factor, viewWidth / 2)
+  })
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
+      // Also stops the browser's Cmd+Left "back" shortcut.
+      e.preventDefault()
+      keyZoom.current(e.key === 'ArrowRight' ? KEY_ZOOM_STEP : 1 / KEY_ZOOM_STEP)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
     following.current = false
@@ -141,10 +171,7 @@ export function PitchEditor({
 
     if (ctrlKey || metaKey) {
       const pointerX = (e.target.getStage()?.getPointerPosition()?.x ?? KEYBOARD_WIDTH) - KEYBOARD_WIDTH
-      const anchorTime = (sx + Math.max(0, pointerX)) / pxPerSec
-      const nextPxPerSec = clamp(pxPerSec * Math.exp(-deltaY * 0.002), MIN_PX_PER_SEC, MAX_PX_PER_SEC)
-      setZoom(nextPxPerSec)
-      setScrollX(anchorTime * nextPxPerSec - Math.max(0, pointerX))
+      zoomBy(Math.exp(-deltaY * WHEEL_ZOOM_SPEED), Math.max(0, pointerX))
       return
     }
 

@@ -2,6 +2,27 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-14 (editor additions)
+
+### "Tune Up" button
+
+One click moves every off-pitch note (the pink/red ones, more than 10 cents from a semitone, the same rule as
+the colours) to its nearest semitone, as a single undoable edit. On the test vocal it moved 93 of 139 notes.
+It's the only coloured control:
+
+- a green gradient, with a light running around its border (a conic-gradient border animated through a
+  registered `--tune-up-angle` custom property)
+- the animation turns off under `prefers-reduced-motion`
+- the button greys out when nothing is off pitch
+
+It applies to all notes, not just the selection.
+
+### Zoom: ⌘/Ctrl + →/← and faster scroll zoom
+
+⌘/Ctrl + → zooms in 1.5× and ⌘/Ctrl + ← zooms out, around the middle of the view. The handler prevents the
+browser's ⌘+← "back" shortcut, and arrows with ⌘/Ctrl no longer move the note selection. Scroll/pinch zoom is
+twice as fast (wheel factor 0.002 → 0.004 per delta unit).
+
 ## 2026-10-14 (Phase 3 revisions)
 
 ### A note plays again from its start whenever it moves to a new pitch
