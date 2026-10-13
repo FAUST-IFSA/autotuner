@@ -3,6 +3,9 @@
 //   const m = await import('/src/dev/audioChecks.ts')
 //   await m.previewLatency()   // drag preview: time from a shift change to hearing it
 //   await m.playbackCheck()    // playback: right pitch per note, no clicks at note boundaries
+//   await m.loopCheck()        // a held note keeps looping until released
+//   await m.retriggerCheck()   // moving a held note a semitone restarts it at the new pitch
+//   await m.nudgeCheck()       // Up/Down plays the note once at its new pitch
 import { AudioEngine } from '../audio/AudioEngine'
 import { getAudioContext } from '../audio/decode'
 import { buildSchedule } from '../audio/schedule'
@@ -197,4 +200,116 @@ export async function playbackCheck(seconds = 12) {
     clickExcessMax: Math.max(...clickExcess),
     clickExcess,
   }
+}
+
+/** Dominant pitch (Hz) of the recording around `t` seconds. */
+function pitchAround(rec: { x: Float32Array; t0: number; sampleRate: number }, contextTime: number) {
+  const mid = Math.round((contextTime - rec.t0) * rec.sampleRate)
+  return detectPitch(rec.x.subarray(Math.max(0, mid - 1024), mid + 1024), rec.sampleRate)
+}
+
+/** A 1 s "note": 440 Hz for its first 150 ms, then 330 Hz, so a restart is easy to hear in the output. */
+function twoPartNote(ctx: AudioContext) {
+  const sr = ctx.sampleRate
+  const buffer = new AudioBuffer({ length: sr * 2, sampleRate: sr, numberOfChannels: 1 })
+  const data = buffer.getChannelData(0)
+  for (let i = Math.round(0.5 * sr); i < 1.5 * sr; i++) {
+    const t = i / sr - 0.5
+    data[i] = 0.5 * Math.sin(2 * Math.PI * (t < 0.15 ? 440 : 330) * t)
+  }
+  const note: NoteSegment = { id: 'n', start: 0.5, end: 1.5, detectedMidi: 64, originalMidi: 64, midi: 64 }
+  return { buffer, note }
+}
+
+/**
+ * Held note: moving it a semitone restarts it from its beginning at the new pitch; a fine (cent) move
+ * just bends it. Expect ~466 Hz after the semitone move (the 440 Hz start, +1), ~331 Hz after the fine move.
+ */
+export async function retriggerCheck() {
+  const ctx = getAudioContext()
+  await ctx.resume()
+  const { buffer, note } = twoPartNote(ctx)
+  const engine = await AudioEngine.create(ctx, buffer)
+  const rec = await record(ctx, (engine as unknown as { previewGain: GainNode }).previewGain)
+  await engine.startPreview(note)
+  await sleep(500) // well into the 330 Hz part
+  const beforeMove = ctx.currentTime
+  const fineAt = ctx.currentTime
+  engine.updatePreview(0.05)
+  await sleep(150)
+  const afterFine = ctx.currentTime
+  engine.updatePreview(1)
+  const moveAt = ctx.currentTime
+  await sleep(160)
+  const afterMove = ctx.currentTime - 0.05
+  engine.stopPreview()
+  await sleep(100)
+  const out = rec.stop()
+  engine.dispose()
+  const hz = (t: number) => Math.round(pitchAround(out, t) ?? 0)
+  return {
+    heldHz: hz(beforeMove - 0.05),
+    afterFineMoveHz: hz(afterFine - 0.03),
+    afterSemitoneMoveHz: hz(afterMove),
+    expected: { held: 330, afterFineMove: 331, afterSemitoneMove: 466 },
+    restartDelayMs: Math.round((afterMove - moveAt) * 1000),
+    fineMoveAt: +fineAt.toFixed(2),
+  }
+}
+
+/** Up/Down nudge with the song stopped: the note plays once from its start at the new pitch, then stops. */
+export async function nudgeCheck() {
+  const ctx = getAudioContext()
+  await ctx.resume()
+  const { buffer, note } = twoPartNote(ctx)
+  const engine = await AudioEngine.create(ctx, buffer)
+  const rec = await record(ctx, (engine as unknown as { previewGain: GainNode }).previewGain)
+  const start = ctx.currentTime
+  await engine.playNote({ ...note, midi: 65 })
+  await sleep(1800)
+  const out = rec.stop()
+  engine.dispose()
+  const hz = (t: number) => Math.round(pitchAround(out, t) ?? 0)
+  const rms = (from: number, to: number) => {
+    const a = Math.round((from - out.t0) * out.sampleRate)
+    const b = Math.round((to - out.t0) * out.sampleRate)
+    let sum = 0
+    for (let i = a; i < b; i++) sum += out.x[i] ** 2
+    return +Math.sqrt(sum / Math.max(1, b - a)).toFixed(3)
+  }
+  return {
+    // The note starts 50 ms in (pre-roll), so its 440 Hz opening is at ~0.12-0.2 s, raised to ~466 Hz.
+    openingHz: hz(start + 0.17),
+    bodyHz: hz(start + 0.7),
+    expected: { opening: 466, body: 350 },
+    levelDuringNote: rms(start + 0.3, start + 0.9),
+    levelAfterNote: rms(start + 1.25, start + 1.45),
+  }
+}
+
+/** A held note keeps looping past its own length (1 s here) until released, then goes quiet. */
+export async function loopCheck() {
+  const ctx = getAudioContext()
+  await ctx.resume()
+  const { buffer, note } = twoPartNote(ctx)
+  const engine = await AudioEngine.create(ctx, buffer)
+  const analyser = new AnalyserNode(ctx, { fftSize: 2048 })
+  ;(engine as unknown as { previewGain: GainNode }).previewGain.connect(analyser)
+  const data = new Float32Array(2048)
+  const level = () => {
+    analyser.getFloatTimeDomainData(data)
+    return +Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length).toFixed(3)
+  }
+  await engine.startPreview(note)
+  const heldLevels: number[] = []
+  for (let i = 0; i < 10; i++) {
+    await sleep(250)
+    heldLevels.push(level())
+  }
+  engine.stopPreview()
+  await sleep(200)
+  const releasedLevel = level()
+  engine.dispose()
+  // 250 ms steps across 2.5 s: the note (with 50 ms pre-roll) is ~1.05 s, so steps 5-10 are loop repeats.
+  return { heldLevels, quietSteps: heldLevels.filter((l) => l < 0.01).length, releasedLevel }
 }

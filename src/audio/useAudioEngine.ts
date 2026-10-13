@@ -17,6 +17,8 @@ export function useAudioEngine(buffer: AudioBuffer) {
         created = e
         e.onPlayingChange = setPlaying
         setEngine(e)
+        // Dev builds expose the live engine for src/dev/audioChecks.ts and console debugging.
+        if (import.meta.env.DEV) Object.assign(window, { __audioEngine: e })
       },
       (err) => !cancelled && setError(err instanceof Error ? err.message : String(err)),
     )

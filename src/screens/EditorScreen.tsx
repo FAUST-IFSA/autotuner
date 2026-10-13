@@ -117,7 +117,11 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
       else if (mod && key === 'a') setSelection(new Set(notes.map((n) => n.id)))
       else if (e.key === 'Escape') setSelection(new Set())
       else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && selection.size > 0) {
-        apply(nudgeNotes(notes, selection, e.key === 'ArrowUp' ? 1 : -1, snap && !e.altKey))
+        const edit = nudgeNotes(notes, selection, e.key === 'ArrowUp' ? 1 : -1, snap && !e.altKey)
+        apply(edit)
+        // Play the (first) moved note again at its new pitch.
+        const moved = notes.find((n) => n.id === edit[0]?.id)
+        if (moved) void engine?.playNote({ ...moved, midi: edit[0].to })
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         // Notes are in time order: step to the neighbour of the selection.
         const indices = notes.flatMap((n, i) => (selection.has(n.id) ? [i] : []))
@@ -138,7 +142,7 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [notes, selection, snap, apply, step, togglePlay, skip, toStart])
+  }, [notes, selection, snap, apply, step, togglePlay, skip, toStart, engine])
 
   return (
     <main className="editor-screen">

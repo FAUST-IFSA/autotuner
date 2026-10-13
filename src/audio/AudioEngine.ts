@@ -20,6 +20,7 @@ interface Voices {
   previewer: StretchNode
   previewGain: GainNode
   outputLatency: number
+  previewOutputLatency: number
 }
 
 /**
@@ -42,7 +43,8 @@ async function acquireVoices(ctx: AudioContext): Promise<Voices> {
   previewer.connect(previewGain).connect(ctx.destination)
   // latency() is input + output latency; output latency is half (Phase 0, spike 2).
   const outputLatency = (await player.latency()) / 2
-  return { player, playerGain, previewer, previewGain, outputLatency }
+  const previewOutputLatency = (await previewer.latency()) / 2
+  return { player, playerGain, previewer, previewGain, outputLatency, previewOutputLatency }
 }
 
 function releaseVoices(ctx: AudioContext, voices: Voices) {
@@ -82,9 +84,15 @@ export class AudioEngine {
   private ticker: number | undefined
   private previewing = false
   private previewSemitones = 0
+  /** Shift the held note last (re)started at; moving half a semitone from it restarts the note. */
+  private previewStartSemitones = 0
+  private previewLoaded = false
+  private previewToken = 0
+  private previewEndTimer: number | undefined
   private resumeAfterPreview = false
   private disposed = false
   private voices: Voices | null = null
+  private previewOutputLatency = 0.02
   private readonly ctx: AudioContext
   private readonly buffer: AudioBuffer
   private readonly player: StretchNode
@@ -121,6 +129,7 @@ export class AudioEngine {
     const { player, playerGain, previewer, previewGain, outputLatency } = voices
     const engine = new AudioEngine(ctx, buffer, player, playerGain, previewer, previewGain, outputLatency)
     engine.voices = voices
+    engine.previewOutputLatency = voices.previewOutputLatency ?? engine.previewOutputLatency
     await player.setUpdateInterval(TICK_SECONDS, () => engine.tick())
     return engine
   }
@@ -205,20 +214,69 @@ export class AudioEngine {
       this.resumeAfterPreview = true
     }
     this.previewing = true
+    await this.loadPreview(note, true)
+  }
+
+  /**
+   * New shift for the held note. Each time it lands on a different pitch (half a semitone or more from
+   * where it last started) the note restarts from its beginning, so every step is heard as the note.
+   */
+  updatePreview(semitones: number) {
+    if (!this.previewing) return
+    const moved = Math.abs(semitones - this.previewStartSemitones) >= 0.5
+    this.previewSemitones = semitones
+    if (moved && this.previewLoaded) this.restartPreview()
+    else void this.previewer.schedule({ semitones })
+  }
+
+  /** Ends the preview, and resumes playback if the preview interrupted it. */
+  stopPreview() {
+    if (this.previewing) {
+      this.previewing = false
+      this.fadeOutPreview(this.ctx.currentTime)
+    }
+    if (this.resumeAfterPreview) {
+      this.resumeAfterPreview = false
+      void this.play(this.position)
+    }
+  }
+
+  /**
+   * Plays a note once, from its start, at its current pitch (after a keyboard nudge). Playback in
+   * progress already reflects the change, so this only sounds when stopped; a newer call cuts off an
+   * older one.
+   */
+  async playNote(note: NoteSegment) {
+    if (this.disposed || this.playing || this.previewing) return
+    this.previewSemitones = note.midi - note.detectedMidi
+    await this.loadPreview(note, false)
+  }
+
+  /** Loads a note (plus pre-roll) into the preview node and starts it, looped or once. */
+  private async loadPreview(note: NoteSegment, loop: boolean) {
+    const token = ++this.previewToken
+    window.clearTimeout(this.previewEndTimer)
+    this.previewLoaded = false
     this.previewSemitones = note.midi - note.detectedMidi
     await this.ctx.resume()
     const from = Math.max(0, note.start - PREVIEW_PRE_ROLL)
     const slice = copyChannels(this.buffer, from, note.end)
+    // Measure before addBuffers: transferring the arrays to the worklet empties them.
+    const length = slice[0].length / this.buffer.sampleRate
     await this.previewer.dropBuffers()
     await this.previewer.addBuffers(slice, slice.map((c) => c.buffer))
-    if (!this.previewing) return
+    // A newer preview started, or the held note was released, while the audio loaded.
+    if (token !== this.previewToken || (loop && !this.previewing)) return
+    this.previewLoaded = true
+    this.previewStartSemitones = this.previewSemitones
     const now = this.ctx.currentTime
     void this.previewer.schedule({
       active: true,
       input: 0,
       output: now,
+      // Equal loop points disable looping.
       loopStart: 0,
-      loopEnd: slice[0].length / this.buffer.sampleRate,
+      loopEnd: loop ? length : 0,
       // Any pitch the note was moved to while the audio was loading.
       semitones: this.previewSemitones,
       ...VOICE,
@@ -227,30 +285,32 @@ export class AudioEngine {
     gain.cancelScheduledValues(0)
     gain.setValueAtTime(0, now)
     gain.linearRampToValueAtTime(1, now + FADE_SECONDS)
+    if (!loop) {
+      this.previewEndTimer = window.setTimeout(() => {
+        if (token === this.previewToken && !this.previewing) this.fadeOutPreview(this.ctx.currentTime)
+      }, (length + this.previewOutputLatency) * 1000)
+    }
   }
 
-  /** New shift for the note being previewed; heard within ~60 ms. */
-  updatePreview(semitones: number) {
-    if (!this.previewing) return
-    this.previewSemitones = semitones
-    void this.previewer.schedule({ semitones })
+  /** Jumps the held note back to its start at the new pitch, behind a short fade so it doesn't click. */
+  private restartPreview() {
+    this.previewStartSemitones = this.previewSemitones
+    const now = this.ctx.currentTime
+    const at = now + this.previewOutputLatency + FADE_SECONDS
+    const gain = this.previewGain.gain
+    gain.cancelScheduledValues(0)
+    gain.setValueAtTime(gain.value, now)
+    gain.linearRampToValueAtTime(0, at)
+    gain.linearRampToValueAtTime(1, at + FADE_SECONDS)
+    void this.previewer.schedule({ input: 0, output: at, outputTime: now, semitones: this.previewSemitones })
   }
 
-  /** Ends the preview, and resumes playback if the preview interrupted it. */
-  stopPreview() {
-    if (this.previewing) {
-      this.previewing = false
-      const now = this.ctx.currentTime
-      const gain = this.previewGain.gain
-      gain.cancelScheduledValues(0)
-      gain.setValueAtTime(gain.value, now)
-      gain.linearRampToValueAtTime(0, now + FADE_SECONDS)
-      void this.previewer.stop(now + FADE_SECONDS + 0.01)
-    }
-    if (this.resumeAfterPreview) {
-      this.resumeAfterPreview = false
-      void this.play(this.position)
-    }
+  private fadeOutPreview(now: number) {
+    const gain = this.previewGain.gain
+    gain.cancelScheduledValues(0)
+    gain.setValueAtTime(gain.value, now)
+    gain.linearRampToValueAtTime(0, now + FADE_SECONDS)
+    void this.previewer.stop(now + FADE_SECONDS + 0.01)
   }
 
   /** Stops sound and hands the nodes back to the pool for the next recording. */

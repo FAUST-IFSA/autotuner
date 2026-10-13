@@ -2,6 +2,30 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-14 (Phase 3 revisions)
+
+### A note plays again from its start whenever it moves to a new pitch
+
+This was flagged as very important.
+
+- **Dragging:** each time the held note lands on a new pitch (half a semitone or more from where it last
+  started), it restarts from its beginning at that pitch, behind a 12 ms fade dip. Fine (Alt) moves under
+  half a semitone just bend the pitch.
+- **Up/Down nudges:** the moved note plays once from its start at the new pitch, then stops. While the song
+  is playing, nudges don't interrupt it; playback already reflects the change.
+
+Measured with `src/dev/audioChecks.ts` (`retriggerCheck`, `nudgeCheck`, `loopCheck`).
+
+### Fixed: the held-note loop never looped
+
+The preview measured the note's length after `addBuffers` had transferred (emptied) the sample arrays, so
+the loop end was 0, which disables looping. A held note played once and then went silent. Length is now
+measured before the transfer. `loopCheck` holds a 1 s note for 2.5 s and confirms it sounds the whole time.
+
+### Dev builds expose the engine as `window.__audioEngine`
+
+This is for the audio checks and console debugging, and is stripped from production builds.
+
 ## 2026-10-13 (Phase 3 revisions, from Aidan's review)
 
 ### Clicking a note plays it on a loop until release, even during playback
