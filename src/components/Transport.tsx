@@ -75,10 +75,22 @@ export function Transport({
   return (
     <div className="transport">
       <div className="transport-buttons" role="group" aria-label="Transport">
-        <button type="button" onClick={onToStart} disabled={disabled} title="Back to start (Enter)" aria-label="Back to start">
+        <button
+          type="button"
+          onClick={onToStart}
+          disabled={disabled}
+          title="Back to start (Enter)"
+          aria-label="Back to start"
+        >
           <Icon name="toStart" />
         </button>
-        <button type="button" onClick={onRewind} disabled={disabled} title="Previous note (<)" aria-label="Previous note">
+        <button
+          type="button"
+          onClick={onRewind}
+          disabled={disabled}
+          title="Previous note (<)"
+          aria-label="Previous note"
+        >
           <Icon name="rewind" />
         </button>
         <button

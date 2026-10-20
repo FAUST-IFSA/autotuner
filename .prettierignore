@@ -1,0 +1,9 @@
+node_modules
+dist
+public/models
+public/tfjs-wasm
+docs/licenses/texts
+docs/spikes/code
+fixtures
+package-lock.json
+*.md

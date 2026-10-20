@@ -7,7 +7,8 @@ export interface Mp3Request {
   sampleRate: number
 }
 
-export type Mp3Message = { type: 'progress'; fraction: number } | { type: 'done'; chunks: Uint8Array[] } | { type: 'error'; message: string }
+export type Mp3Message =
+  { type: 'progress'; fraction: number } | { type: 'done'; chunks: Uint8Array[] } | { type: 'error'; message: string }
 
 const post = (message: Mp3Message, transfer: Transferable[] = []) => self.postMessage(message, { transfer })
 
@@ -20,7 +21,10 @@ self.onmessage = (event: MessageEvent<Mp3Request>) => {
         post({ type: 'progress', fraction })
       }
     })
-    post({ type: 'done', chunks }, chunks.map((c) => c.buffer))
+    post(
+      { type: 'done', chunks },
+      chunks.map((c) => c.buffer),
+    )
   } catch (err) {
     post({ type: 'error', message: err instanceof Error ? err.message : String(err) })
   }

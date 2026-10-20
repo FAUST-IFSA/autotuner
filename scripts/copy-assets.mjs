@@ -9,7 +9,10 @@ const copies = [
   ['node_modules/@spotify/basic-pitch/model', 'public/models/basic-pitch'],
   ['node_modules/@spotify/basic-pitch/LICENSE', 'public/models/basic-pitch/LICENSE'],
   ['node_modules/@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm', 'public/tfjs-wasm/tfjs-backend-wasm.wasm'],
-  ['node_modules/@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-simd.wasm', 'public/tfjs-wasm/tfjs-backend-wasm-simd.wasm'],
+  [
+    'node_modules/@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-simd.wasm',
+    'public/tfjs-wasm/tfjs-backend-wasm-simd.wasm',
+  ],
   [
     'node_modules/@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-threaded-simd.wasm',
     'public/tfjs-wasm/tfjs-backend-wasm-threaded-simd.wasm',

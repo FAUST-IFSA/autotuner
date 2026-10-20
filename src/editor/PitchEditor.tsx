@@ -124,8 +124,22 @@ export function PitchEditor({
             <Group x={KEYBOARD_WIDTH} clipX={0} clipY={0} clipWidth={viewWidth} clipHeight={RULER_HEIGHT}>
               <TimeRuler duration={duration} pxPerSec={pxPerSec} scrollX={sx} width={viewWidth} />
             </Group>
-            <Group x={KEYBOARD_WIDTH} y={RULER_HEIGHT} clipX={0} clipY={0} clipWidth={viewWidth} clipHeight={gridHeight}>
-              <PitchGrid duration={duration} pxPerSec={pxPerSec} scrollX={sx} scrollY={sy} width={viewWidth} height={gridHeight} />
+            <Group
+              x={KEYBOARD_WIDTH}
+              y={RULER_HEIGHT}
+              clipX={0}
+              clipY={0}
+              clipWidth={viewWidth}
+              clipHeight={gridHeight}
+            >
+              <PitchGrid
+                duration={duration}
+                pxPerSec={pxPerSec}
+                scrollX={sx}
+                scrollY={sy}
+                width={viewWidth}
+                height={gridHeight}
+              />
             </Group>
             <Group y={RULER_HEIGHT} clipX={0} clipY={0} clipWidth={KEYBOARD_WIDTH} clipHeight={gridHeight}>
               <Keyboard scrollY={sy} height={gridHeight} />
@@ -133,7 +147,14 @@ export function PitchEditor({
             <Rect width={KEYBOARD_WIDTH} height={RULER_HEIGHT} fill="#15171c" stroke="#30343d" strokeWidth={1} />
           </Layer>
           <Layer listening={false}>
-            <Group x={KEYBOARD_WIDTH} y={RULER_HEIGHT} clipX={0} clipY={0} clipWidth={viewWidth} clipHeight={gridHeight}>
+            <Group
+              x={KEYBOARD_WIDTH}
+              y={RULER_HEIGHT}
+              clipX={0}
+              clipY={0}
+              clipWidth={viewWidth}
+              clipHeight={gridHeight}
+            >
               <F0Curve f0={f0} shifts={shifts} pxPerSec={pxPerSec} scrollX={sx} scrollY={sy} width={viewWidth} />
               <Group x={-sx} y={-sy}>
                 {blobs}

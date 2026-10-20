@@ -30,7 +30,10 @@ function encodeMp3InWorker(channels: Float32Array[], sampleRate: number, onProgr
       reject(new Error(event.message || 'MP3 encoding failed.'))
     }
     const request: Mp3Request = { channels, sampleRate }
-    worker.postMessage(request, channels.map((c) => c.buffer))
+    worker.postMessage(
+      request,
+      channels.map((c) => c.buffer),
+    )
   })
 }
 

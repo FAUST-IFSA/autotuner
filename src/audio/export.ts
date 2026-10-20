@@ -48,7 +48,10 @@ export async function renderTuned(
   })
   node.connect(ctx.destination)
   const channels = channelsOf(buffer)
-  await node.addBuffers(channels, channels.map((c) => c.buffer))
+  await node.addBuffers(
+    channels,
+    channels.map((c) => c.buffer),
+  )
   const outputLatency = (await node.latency()) / 2
 
   const pending: Promise<unknown>[] = []
@@ -83,4 +86,3 @@ export async function renderTuned(
   onProgress(1)
   return rendered
 }
-

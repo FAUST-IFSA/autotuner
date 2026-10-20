@@ -120,14 +120,22 @@ export class AudioEngine {
     this.previewGain = previewGain
     this.outputLatency = outputLatency
     this.scheduler = new ShiftScheduler((change, outputTime) => {
-      void player.schedule({ output: change.output, outputTime, semitones: change.semitones, active: change.active ?? true })
+      void player.schedule({
+        output: change.output,
+        outputTime,
+        semitones: change.semitones,
+        active: change.active ?? true,
+      })
     }, outputLatency)
   }
 
   static async create(ctx: AudioContext, buffer: AudioBuffer): Promise<AudioEngine> {
     const voices = await acquireVoices(ctx)
     const channels = copyChannels(buffer)
-    await voices.player.addBuffers(channels, channels.map((c) => c.buffer))
+    await voices.player.addBuffers(
+      channels,
+      channels.map((c) => c.buffer),
+    )
     const { player, playerGain, previewer, previewGain, outputLatency } = voices
     const engine = new AudioEngine(ctx, buffer, player, playerGain, previewer, previewGain, outputLatency)
     engine.voices = voices
@@ -275,7 +283,10 @@ export class AudioEngine {
     // Measure before addBuffers: transferring the arrays to the worklet empties them.
     const length = slice[0].length / this.buffer.sampleRate
     await this.previewer.dropBuffers()
-    await this.previewer.addBuffers(slice, slice.map((c) => c.buffer))
+    await this.previewer.addBuffers(
+      slice,
+      slice.map((c) => c.buffer),
+    )
     // A newer preview started, or the held note was released, while the audio loaded.
     if (token !== this.previewToken || (loop && !this.previewing)) return
     this.previewLoaded = true
@@ -297,9 +308,12 @@ export class AudioEngine {
     gain.setValueAtTime(0, now)
     gain.linearRampToValueAtTime(1, now + FADE_SECONDS)
     if (!loop) {
-      this.previewEndTimer = window.setTimeout(() => {
-        if (token === this.previewToken && !this.previewing) this.fadeOutPreview(this.ctx.currentTime)
-      }, (length + this.previewOutputLatency) * 1000)
+      this.previewEndTimer = window.setTimeout(
+        () => {
+          if (token === this.previewToken && !this.previewing) this.fadeOutPreview(this.ctx.currentTime)
+        },
+        (length + this.previewOutputLatency) * 1000,
+      )
     }
   }
 

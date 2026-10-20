@@ -18,7 +18,9 @@ interface Options {
 }
 
 const isTyping = (target: EventTarget | null) =>
-  target instanceof HTMLElement && (target.isContentEditable || ['TEXTAREA', 'SELECT'].includes(target.tagName) ||
+  target instanceof HTMLElement &&
+  (target.isContentEditable ||
+    ['TEXTAREA', 'SELECT'].includes(target.tagName) ||
     (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'checkbox'))
 
 /** Index of the note after (or before) the selection; notes are in time order. */

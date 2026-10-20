@@ -1,14 +1,6 @@
 import { useState } from 'react'
 import type { NoteSegment } from '../types'
-import {
-  GRID_HEIGHT,
-  KEYBOARD_WIDTH,
-  MAX_PX_PER_SEC,
-  MIN_PX_PER_SEC,
-  RULER_HEIGHT,
-  clamp,
-  pitchToY,
-} from './layout'
+import { GRID_HEIGHT, KEYBOARD_WIDTH, MAX_PX_PER_SEC, MIN_PX_PER_SEC, RULER_HEIGHT, clamp, pitchToY } from './layout'
 
 export interface Viewport {
   viewWidth: number
