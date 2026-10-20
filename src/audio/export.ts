@@ -11,8 +11,8 @@ export function channelsOf(buffer: AudioBuffer): Float32Array[] {
 }
 
 /** Plain sample-rate conversion (used before an MP3 render of a >48 kHz recording). */
-export async function resample(buffer: AudioBuffer, sampleRate: number): Promise<AudioBuffer> {
-  if (buffer.sampleRate === sampleRate) return buffer
+export function resample(buffer: AudioBuffer, sampleRate: number): Promise<AudioBuffer> {
+  if (buffer.sampleRate === sampleRate) return Promise.resolve(buffer)
   const ctx = new OfflineAudioContext(buffer.numberOfChannels, Math.ceil(buffer.duration * sampleRate), sampleRate)
   const source = new AudioBufferSourceNode(ctx, { buffer })
   source.connect(ctx.destination)
