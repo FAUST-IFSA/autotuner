@@ -2,6 +2,53 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-20 (editor refactor)
+
+### PitchEditor and EditorScreen split into hooks
+
+This is a behaviour-preserving refactor toward idiomatic React/TypeScript.
+
+- **`PitchEditor`** (366 → 159 lines). The pieces moved into:
+  - `useElementSize` (container size)
+  - `useViewport` (zoom, scroll, fit-to-sung-range)
+  - `usePanZoom` (wheel and Cmd/Ctrl+arrow zoom)
+  - `useRevealSelection` (scroll a keyboard-selected note into view)
+  - `usePlayhead` (per-frame line, following)
+  - `useNoteGestures` (hit testing, drag, marquee, hover, ruler seek, preview grab)
+- **`EditorScreen`** (248 → 127 lines). The pieces moved into:
+  - `useEditHistory` (preview/commit/apply, undo/redo)
+  - `usePlayback` (engine wiring)
+  - `useEditorShortcuts` (the keyboard table)
+- **The engine reports its state instead of being polled.** `AudioEngine.subscribe()` emits `play`, `pause`,
+  `end` and `seek`. React reads `playing` through `useSyncExternalStore`, and the playhead and readout redraw
+  on engine events. That replaces the `playheadRevision` counter and three effects that only existed to
+  re-run on it.
+- **Lint and typing clean-ups.**
+  - TypeScript `strict` is on.
+  - The stricter oxlint rules that matter (`no-shadow`, effect dependencies, nested ternaries,
+    `require-await`) report nothing.
+
+**How it was checked.**
+
+- A 110-item behaviour inventory guided the work, which went through two rounds of lens-specific review with
+  two skeptics per finding.
+- It was then exercised in the browser with real input: seeks while paused, ruler click, playback, holding a
+  note mid-playback, box select, arrow selection and nudge, undo, Cmd+arrow zoom, following, Tune Up,
+  Controls/Esc, and WAV export.
+- An A/B performance run against the pre-refactor build showed the same canvas updates per scroll step and
+  comparable React time.
+- Zoomed-in sideways panning of a 3-minute vocal peaks around 30 ms per frame on both builds, because Konva
+  redraws every note. That predates the refactor and is a separate follow-up.
+
+### With no audio engine, Enter and ruler clicks change nothing
+
+Seeks now reach the playhead and the time readout through the engine's own events instead of a revision
+counter in the editor. While the engine is loading, or after "Playback isn't available", Enter and a ruler
+click therefore do nothing. Before, they still turned following back on without moving the playhead (it
+stays at 0:00 without audio), so the next reveal or resize snapped the view back to the start. This narrows
+"Play or any jump turns it back on" (2026-10-13): with no engine nothing jumps, which matches the transport
+buttons being disabled. With an engine, seeks behave as before.
+
 ## 2026-10-14 (Phase 4)
 
 ### Export renders offline through the playback path

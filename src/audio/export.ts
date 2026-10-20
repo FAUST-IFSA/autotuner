@@ -69,7 +69,7 @@ export async function renderTuned(
   const times = new Set<number>()
   for (const c of schedule.slice(1)) times.add(Math.ceil((c.t - outputLatency) / quantum) * quantum)
   for (let t = PROGRESS_STEP; t < end; t += PROGRESS_STEP) times.add(Math.ceil(t / quantum) * quantum)
-  for (const t of [...times].filter((t) => t > 0 && t < end).sort((a, b) => a - b)) {
+  for (const t of [...times].filter((time) => time > 0 && time < end).sort((a, b) => a - b)) {
     void ctx.suspend(t).then(async () => {
       scheduler.tick(ctx.currentTime)
       // The worklet must have the change before rendering continues.
