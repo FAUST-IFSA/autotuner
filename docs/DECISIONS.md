@@ -2,6 +2,65 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-21 (architecture review)
+
+A lean review covered module boundaries, folder structure and resource lifecycles: three reviewers, one
+skeptic per finding, 15 of 23 findings upheld. Every upheld finding was re-checked against the code before
+changing anything. The fixes are in PR 7, on top of the stack.
+
+### Bugs fixed
+
+- **Export finishing after "← New file":** it no longer shows the old "Saved to your downloads" screen over
+  the next project.
+- **"← New file" and "Tune another vocal"** save the latest edits immediately. The 0.8 s debounced save used
+  to be cancelled, losing the last edits.
+- **Recent-files writes now run one at a time, in order, and the list waits for them.** Found while
+  verifying the previous fix: the upload screen read the list a moment before the closing save finished, so
+  it showed stale counts. Overlapping saves could also overwrite each other's index updates.
+- **Closing a file cancels a one-shot note preview** (an Up/Down nudge) that is still loading. Its load or end
+  timer could otherwise drive the pooled nodes the next file uses, and `play()` stops if the engine was
+  disposed while the context resumed.
+- **A drag the browser cancels** keeps its pitch and is recorded for undo. This predates the refactor.
+- **Cmd/Ctrl+arrow zoom is off** while the Downloaded screen covers the editor, like the other shortcuts.
+- **When Basic Pitch fails**, the editor says the notes are approximate, and they aren't saved to recent files
+  (reopening never re-analyses). The fallback flag used to be computed and then dropped.
+- **Notes sung outside the C2–C6 grid** are never nudged or dragged the wrong way: 84.6 nudged up used to drop
+  to 84.
+
+### Structure
+
+These are pure moves.
+
+- `audio/decode.ts` keeps the shared AudioContext and file decoding; loading and analysing a file moved to
+  `audio/loadAudioFile.ts`.
+- The shift rule (`midi - detectedMidi`) and `isEdited` live once, in `audio/music.ts`.
+- Signalsmith settings shared by playback and export are in `audio/stretch.ts`, and `copyChannels` is in
+  `audio/channels.ts`. Offline export no longer imports the realtime engine.
+- `npm run build` now runs `scripts/check-chunks.mjs`, which fails if lamejs (LGPL) appears outside the MP3
+  worker chunk. Verified by adding a deliberate stray import: the build failed and named the chunk.
+
+### Exports are at the decoded rate, not the file's original rate
+
+`decodeAudioData` resamples to its AudioContext's rate, and every file is decoded through the shared playback
+context, which runs at the output device's rate. So `Project.buffer`, playback and export all use the device
+rate. A 44.1 kHz vocal opened on a 48 kHz Mac exports as a 48 kHz WAV.
+
+The earlier entries saying "at the original rate" and "bit-exact" were wrong: a project with no edits is
+bit-exact against the decoded audio, and against the file only when the two rates match.
+
+`AudioEngine.create` now throws if a buffer's rate differs from the context's, which makes the assumption
+playback relies on visible. The proper fix is an export-only change: read the file's native rate from its
+header and re-decode at that rate for export. That is open for a decision.
+
+### Reviewed and left as they are (impact too small)
+
+- `storage/` importing `decodeAudioFile`
+- one main bundle chunk
+- note-name helpers living in `editor/layout.ts`
+- two small `OfflineAudioContext` resamplers
+- where `useAudioEngine` lives
+- recent-files quota behaviour (already a documented choice)
+
 ## 2026-10-20 (editor refactor)
 
 ### PitchEditor and EditorScreen split into hooks
@@ -55,7 +114,8 @@ buttons being disabled. With an engine, seeks behave as before.
 
 `renderTuned` runs the original through the same Signalsmith node settings, transpose schedule and
 `ShiftScheduler` as playback, in an `OfflineAudioContext`. The render pauses at each point where the next
-change can be queued. A project with no edits is exported untouched (bit-exact).
+change can be queued. A project with no edits is exported untouched: bit-exact against the decoded audio,
+which is at the playback context's rate (see 2026-10-21).
 
 Measured with `exportCheck` on the synthetic vocal, every other note moved:
 
@@ -69,9 +129,10 @@ Measured with `exportCheck` on the synthetic vocal, every other note moved:
 
 On the 3-minute test vocal with 280 of 522 notes moved: WAV in 6 s (47 MB), MP3 in 16 s (4.2 MB).
 
-### WAV is 24-bit PCM at the original rate; MP3 is 192 kbps, at most 48 kHz
+### WAV is 24-bit PCM at the decoded rate; MP3 is 192 kbps, at most 48 kHz
 
-LAME only supports up to 48 kHz, so higher-rate recordings are resampled to 48 kHz for MP3 only.
+The decoded rate is the playback context's rate, not always the file's own (corrected 2026-10-21). LAME only
+supports up to 48 kHz, so higher-rate audio is resampled to 48 kHz for MP3 only.
 
 ### MP3 uses `@breezystack/lamejs`, isolated in its own worker chunk
 

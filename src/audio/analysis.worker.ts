@@ -5,7 +5,7 @@ import { analyzePitch } from './analyze'
 import { computePeaks } from './peaks'
 
 export interface AnalysisRequest {
-  /** Mono mix at the original sample rate, for drawing. */
+  /** Mono mix at the decoded (playback) sample rate, for drawing. */
   samples: Float32Array
   sampleRate: number
   /** Mono at 22,050 Hz, for pitch analysis. */

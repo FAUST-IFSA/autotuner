@@ -123,6 +123,11 @@ export class AudioEngine {
   }
 
   static async create(ctx: AudioContext, buffer: AudioBuffer): Promise<AudioEngine> {
+    // Signalsmith plays raw sample arrays at the context's rate, so the buffer must already be at it.
+    // decodeAudioFile guarantees that by decoding through this same context.
+    if (buffer.sampleRate !== ctx.sampleRate) {
+      throw new Error(`Audio is at ${buffer.sampleRate} Hz but playback runs at ${ctx.sampleRate} Hz`)
+    }
     const voices = await acquireVoices(ctx)
     const channels = copyChannels(buffer)
     await voices.player.addBuffers(

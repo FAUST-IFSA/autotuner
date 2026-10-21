@@ -46,7 +46,7 @@ export async function exportTuned(
 ): Promise<{ blob: Blob; fileName: string }> {
   const render = (fraction: number) => onStatus({ stage: 'render', fraction })
   let source = project.buffer
-  // MP3 tops out at 48 kHz; WAV always keeps the original rate.
+  // MP3 tops out at 48 kHz; WAV keeps the decoded rate (the playback context's, see decodeAudioFile).
   if (format === 'mp3' && source.sampleRate > MP3_MAX_SAMPLE_RATE) source = await resample(source, MP3_MAX_SAMPLE_RATE)
   const rendered = await renderTuned(source, project.notes, render)
   const channels = copyChannels(rendered)

@@ -206,7 +206,8 @@ Resume the context on the first user gesture.
 
 ### `src/audio/export.ts`
 
-Render with an `OfflineAudioContext` at the original sample rate and channel count, using the same scheduler
+Render with an `OfflineAudioContext` at the decoded sample rate (the playback context's; see DECISIONS
+2026-10-21) and the original channel count, using the same scheduler
 driven by `suspend()`. Write WAV with our own encoder (`wav.ts`). For MP3, lazy-load lamejs at 192 kbps in a
 Web Worker. Download as `<name>-tuned.wav` or `.mp3`, then show the Downloaded screen. This replaces the
 current "Export corrections" JSON button.
