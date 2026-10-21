@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { isEdited } from '../audio/music'
 import type { NoteSegment } from '../types'
 import {
   MAX_HISTORY,
   applyEdit,
   effective,
   emptyHistory,
-  isEdited,
   isOffPitch,
   nudgeNotes,
   record,
@@ -56,6 +56,13 @@ describe('nudgeNotes', () => {
   it('moves selected notes to the next semitone with snap', () => {
     expect(nudgeNotes(notes, new Set(['a']), 1, true)).toEqual([{ id: 'a', from: 59.73, to: 61 }])
     expect(nudgeNotes(notes, new Set(['a']), -1, true)[0].to).toBe(59)
+  })
+
+  it('never moves a note sung above the grid the wrong way', () => {
+    // 84.6 snapped up would be 86, past the grid's top (84): it stays put rather than dropping to 84.
+    expect(nudgeNotes([note('hi', 84.6)], new Set(['hi']), 1, true)[0].to).toBe(84.6)
+    expect(nudgeNotes([note('hi', 84.6)], new Set(['hi']), -1, true)[0].to).toBe(84)
+    expect(shiftNotes(new Map([['hi', 84.6]]), 2, true)[0].to).toBe(84.6)
   })
 
   it('moves by 10 cents in fine mode', () => {

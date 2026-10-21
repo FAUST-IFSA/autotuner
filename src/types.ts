@@ -40,4 +40,6 @@ export interface Project {
   peaks: Peaks
   notes: NoteSegment[]
   f0: F0Curve
+  /** Basic Pitch failed, so the notes came from the rough loudness fallback (shown as a notice, not saved). */
+  approximateNotes?: boolean
 }

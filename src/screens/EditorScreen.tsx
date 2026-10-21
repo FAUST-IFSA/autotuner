@@ -4,7 +4,8 @@ import { useAudioEngine } from '../audio/useAudioEngine'
 import { ControlsMenu } from '../components/ControlsMenu'
 import { ExportBar } from '../components/ExportBar'
 import { Transport } from '../components/Transport'
-import { isEdited, isOffPitch, resetNotes, tuneUp } from '../editor/edits'
+import { isEdited } from '../audio/music'
+import { isOffPitch, resetNotes, tuneUp } from '../editor/edits'
 import { PitchEditor } from '../editor/PitchEditor'
 import type { NoteSegment, Project } from '../types'
 import { useEditHistory } from './useEditHistory'
@@ -77,6 +78,11 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
           {project.buffer.duration.toFixed(1)}s · {notes.length} notes
           {selection.size > 0 && ` · ${selection.size} selected`}
         </span>
+        {project.approximateNotes && (
+          <span className="notice" role="status">
+            Note detection was unavailable, so these notes are approximate. Reload and try again.
+          </span>
+        )}
         <div className="editor-tools">
           <button
             type="button"
@@ -120,6 +126,7 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
         onGrab={grab}
         onGrabShift={grabShift}
         onRelease={release}
+        shortcutsEnabled={!suspended}
       />
       <ExportBar project={project} onExported={onExported} />
     </main>

@@ -2,6 +2,88 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-21 (architecture review)
+
+A lean review covered module boundaries, folder structure and resource lifecycles: three reviewers, one
+skeptic per finding, 15 of 23 findings upheld. Every upheld finding was re-checked against the code before
+changing anything. The fixes are in PR 7, on top of the stack.
+
+### Bugs fixed
+
+- **Export finishing after "← New file":** it no longer shows the old "Saved to your downloads" screen over
+  the next project.
+- **"← New file" and "Tune another vocal"** save the latest edits immediately. The 0.8 s debounced save used
+  to be cancelled, losing the last edits.
+- **Recent-files writes now run one at a time, in order, and the list waits for them.** Found while
+  verifying the previous fix: the upload screen read the list a moment before the closing save finished, so
+  it showed stale counts. Overlapping saves could also overwrite each other's index updates.
+- **Closing a file cancels a one-shot note preview** (an Up/Down nudge) that is still loading. Its load or end
+  timer could otherwise drive the pooled nodes the next file uses, and `play()` stops if the engine was
+  disposed while the context resumed.
+- **A drag the browser cancels** keeps its pitch and is recorded for undo. This predates the refactor.
+- **Cmd/Ctrl+arrow zoom is off** while the Downloaded screen covers the editor, like the other shortcuts.
+- **When Basic Pitch fails**, the editor says the notes are approximate, and they aren't saved to recent files
+  (reopening never re-analyses). The fallback flag used to be computed and then dropped.
+- **Notes sung outside the C2–C6 grid** are never nudged or dragged the wrong way: 84.6 nudged up used to drop
+  to 84.
+
+### Structure
+
+These are pure moves.
+
+- `audio/decode.ts` keeps the shared AudioContext and file decoding; loading and analysing a file moved to
+  `audio/loadAudioFile.ts`.
+- The shift rule (`midi - detectedMidi`) and `isEdited` live once, in `audio/music.ts`.
+- Signalsmith settings shared by playback and export are in `audio/stretch.ts`, and `copyChannels` is in
+  `audio/channels.ts`. Offline export no longer imports the realtime engine.
+- `npm run build` now runs `scripts/check-chunks.mjs`, which fails if lamejs (LGPL) appears outside the MP3
+  worker chunk. Verified by adding a deliberate stray import: the build failed and named the chunk.
+
+### Exports are at the file's own sample rate (fixed)
+
+**The problem.** `decodeAudioData` resamples to its AudioContext's rate, and every file is decoded through the
+shared playback context, which runs at the output device's rate. So `Project.buffer` and playback are at the
+device rate, and exports used to be too: a 44.1 kHz vocal opened on a 48 kHz Mac exported as a 48 kHz WAV. The
+earlier entries saying "at the original rate" and "bit-exact" were wrong until this fix.
+
+**The fix touches export only.** Playback and analysis are unchanged.
+
+- `audio/nativeRate.ts` reads the rate from the file's header: WAV/RF64, AIFF, FLAC, MP3 (after any ID3 tag,
+  confirmed by two consecutive frames), and Ogg (Vorbis, or Opus, which is always 48 kHz).
+- MP4/M4A and WebM return null. Their compressed data can contain bytes that look like MP3 frames: a real
+  M4A misread as 44.1 kHz before they were excluded.
+- When the file's rate differs from the project's, `exportTuned` decodes the file again at its own rate through
+  an `OfflineAudioContext`, which decodes to its own rate. That copy exists only during the export.
+- Note times are in seconds, so edits line up at any rate.
+- Unknown formats and any failure fall back to the playback-rate buffer.
+
+**MP3 rates.** MP3 can only use the standard MPEG rates (8 to 48 kHz). Other rates round up to the next
+supported one, so nothing is lost, and anything above 48 kHz becomes 48 kHz.
+
+**Verified.**
+
+- 10 unit tests on synthetic headers. These include an extra chunk before `fmt `, ID3 tags before FLAC and MP3,
+  a fake MP3 sync in junk, and MP3-looking bytes inside an M4A.
+- Real files made with ffmpeg: WAV 48k/96k, AIFF, FLAC 88.2k, MP3 22.05k/32k/48k (tagged and untagged), Opus,
+  M4A, and the Looperman vocals.
+- In the app, with the browser at 44.1 kHz:
+  - 22.05k, 48k and 96k WAV and 48k MP3 sources each export at their own rate and length.
+  - With no edits, exports are sample-identical to the source: exact for 24-bit, and within one 24-bit step
+    otherwise.
+  - Edited notes at 22.05 kHz: 28/28 within 20 cents of their targets, worst 13.
+
+`AudioEngine.create` throws if a buffer's rate differs from the context's, which makes the assumption playback
+relies on visible.
+
+### Reviewed and left as they are (impact too small)
+
+- `storage/` importing `decodeAudioFile`
+- one main bundle chunk
+- note-name helpers living in `editor/layout.ts`
+- two small `OfflineAudioContext` resamplers
+- where `useAudioEngine` lives
+- recent-files quota behaviour (already a documented choice)
+
 ## 2026-10-20 (editor refactor)
 
 ### PitchEditor and EditorScreen split into hooks
@@ -55,7 +137,8 @@ buttons being disabled. With an engine, seeks behave as before.
 
 `renderTuned` runs the original through the same Signalsmith node settings, transpose schedule and
 `ShiftScheduler` as playback, in an `OfflineAudioContext`. The render pauses at each point where the next
-change can be queued. A project with no edits is exported untouched (bit-exact).
+change can be queued. A project with no edits is exported untouched: bit-exact against the file decoded at
+its own rate (see 2026-10-21).
 
 Measured with `exportCheck` on the synthetic vocal, every other note moved:
 
@@ -69,9 +152,11 @@ Measured with `exportCheck` on the synthetic vocal, every other note moved:
 
 On the 3-minute test vocal with 280 of 522 notes moved: WAV in 6 s (47 MB), MP3 in 16 s (4.2 MB).
 
-### WAV is 24-bit PCM at the original rate; MP3 is 192 kbps, at most 48 kHz
+### WAV is 24-bit PCM at the file's own rate; MP3 is 192 kbps, at most 48 kHz
 
-LAME only supports up to 48 kHz, so higher-rate recordings are resampled to 48 kHz for MP3 only.
+The file's own rate has applied since 2026-10-21; before that, exports used the playback context's rate. MP3
+uses the standard MPEG rates only, so other rates round up to the next one and anything above 48 kHz becomes
+48 kHz.
 
 ### MP3 uses `@breezystack/lamejs`, isolated in its own worker chunk
 

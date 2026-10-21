@@ -1,10 +1,10 @@
 import type { Context } from 'konva/lib/Context'
 import { memo, useMemo } from 'react'
 import { Group, Line, Shape, Text } from 'react-konva'
-import { centsOff } from '../audio/music'
+import { centsOff, isEdited } from '../audio/music'
 import { peakRange } from '../audio/peaks'
 import type { NoteSegment, Peaks } from '../types'
-import { isEdited, tuningColor } from './edits'
+import { tuningColor } from './edits'
 import { BLOB_HALF_HEIGHT, ROW_HEIGHT, midiName, midiToY } from './layout'
 
 interface Props {

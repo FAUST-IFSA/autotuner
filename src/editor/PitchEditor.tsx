@@ -2,7 +2,8 @@ import { useMemo, useRef } from 'react'
 import { Group, Layer, Rect, Stage } from 'react-konva'
 import type { AudioEngine } from '../audio/AudioEngine'
 import type { F0Curve as Curve, NoteSegment, Peaks } from '../types'
-import { type Edit, shiftOf } from './edits'
+import { shiftOf } from '../audio/music'
+import type { Edit } from './edits'
 import { F0Curve } from './F0Curve'
 import { KEYBOARD_WIDTH, RULER_HEIGHT } from './layout'
 import { NoteBlob } from './NoteBlob'
@@ -37,6 +38,8 @@ interface Props {
   onGrab: (note: NoteSegment) => void
   onGrabShift: (semitones: number) => void
   onRelease: () => void
+  /** Off while another screen (the Downloaded screen) covers the editor. */
+  shortcutsEnabled: boolean
 }
 
 /** Semitone shift per F0 frame, so the curve moves with edited notes. */
@@ -66,6 +69,7 @@ export function PitchEditor({
   onGrab,
   onGrabShift,
   onRelease,
+  shortcutsEnabled,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const size = useElementSize(containerRef)
@@ -80,7 +84,7 @@ export function PitchEditor({
     viewWidth,
     scrollToX: view.scrollToX,
   })
-  const handleWheel = usePanZoom(view, stopFollowing)
+  const handleWheel = usePanZoom(view, stopFollowing, shortcutsEnabled)
   const { hovered, marquee, cursor, pointerHandlers } = useNoteGestures({
     containerRef,
     notes,

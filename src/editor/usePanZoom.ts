@@ -12,7 +12,7 @@ const KEY_ZOOM_STEP = 1.5
  * The user moving the view: wheel and trackpad scrolling and pinching, and Cmd/Ctrl + Left/Right. Each
  * stops the view following the playhead. Returns the Stage's wheel handler.
  */
-export function usePanZoom(view: Viewport, stopFollowing: () => void) {
+export function usePanZoom(view: Viewport, stopFollowing: () => void, keysEnabled: boolean) {
   // Cmd/Ctrl + Right zooms in, Cmd/Ctrl + Left zooms out, around the middle of the view.
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (!(e.metaKey || e.ctrlKey) || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
@@ -22,9 +22,10 @@ export function usePanZoom(view: Viewport, stopFollowing: () => void) {
     view.zoomBy(e.key === 'ArrowRight' ? KEY_ZOOM_STEP : 1 / KEY_ZOOM_STEP, view.viewWidth / 2)
   })
   useEffect(() => {
+    if (!keysEnabled) return
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [keysEnabled])
 
   return (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
