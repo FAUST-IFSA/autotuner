@@ -58,6 +58,13 @@ describe('nudgeNotes', () => {
     expect(nudgeNotes(notes, new Set(['a']), -1, true)[0].to).toBe(59)
   })
 
+  it('never moves a note sung above the grid the wrong way', () => {
+    // 84.6 snapped up would be 86, past the grid's top (84): it stays put rather than dropping to 84.
+    expect(nudgeNotes([note('hi', 84.6)], new Set(['hi']), 1, true)[0].to).toBe(84.6)
+    expect(nudgeNotes([note('hi', 84.6)], new Set(['hi']), -1, true)[0].to).toBe(84)
+    expect(shiftNotes(new Map([['hi', 84.6]]), 2, true)[0].to).toBe(84.6)
+  })
+
   it('moves by 10 cents in fine mode', () => {
     expect(nudgeNotes(notes, new Set(['b']), 1, false)[0].to).toBeCloseTo(64.3)
   })

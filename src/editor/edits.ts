@@ -38,6 +38,12 @@ export function applyEdit(notes: NoteSegment[], edit: Edit, direction: 'to' | 'f
 }
 
 /**
+ * Keeps an edit inside the drawn grid (C2-C6) without ever moving a note the wrong way: a note sung outside
+ * the grid can move toward it, but an edit that would take it further out leaves it where it is.
+ */
+const keepInGrid = (to: number, from: number) => clamp(to, Math.min(MIDI_MIN, from), Math.max(MIDI_MAX, from))
+
+/**
  * Moves notes by `delta` semitones from their `start` pitches. With snap, each note lands on the
  * nearest semitone (which also corrects its tuning); without, it moves in 1-cent steps.
  */
@@ -45,7 +51,7 @@ export function shiftNotes(start: Map<string, number>, delta: number, snap: bool
   return [...start].map(([id, from]) => {
     const raw = from + delta
     const to = snap ? Math.round(raw) : Math.round(raw / FINE_STEP) * FINE_STEP
-    return { id, from, to: clamp(to, MIDI_MIN, MIDI_MAX) }
+    return { id, from, to: keepInGrid(to, from) }
   })
 }
 
@@ -55,7 +61,7 @@ export function nudgeNotes(notes: NoteSegment[], ids: Set<string>, direction: 1 
     .filter((n) => ids.has(n.id))
     .map((n) => {
       const to = snap ? Math.round(n.midi) + direction : Math.round((n.midi + direction * FINE_KEY_STEP) * 100) / 100
-      return { id: n.id, from: n.midi, to: clamp(to, MIDI_MIN, MIDI_MAX) }
+      return { id: n.id, from: n.midi, to: keepInGrid(to, n.midi) }
     })
 }
 

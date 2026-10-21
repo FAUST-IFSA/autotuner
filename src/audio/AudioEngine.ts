@@ -183,6 +183,8 @@ export class AudioEngine {
     if (this.disposed) return
     this.resumeAfterPreview = false
     await this.ctx.resume()
+    // Disposed while the context was resuming.
+    if (this.disposed) return
     if (this.playing) this.halt()
     this.from = from >= this.buffer.duration - 0.05 ? 0 : from
     // Schedule ahead by the node's output latency so it starts exactly at `from`.
@@ -345,6 +347,11 @@ export class AudioEngine {
     this.resumeAfterPreview = false
     this.halt()
     this.stopPreview()
+    // Also cancel a one-shot note (playNote isn't a held preview): a load still in flight, or its end timer,
+    // would otherwise touch the pooled nodes after they belong to the next engine.
+    this.previewToken++
+    window.clearTimeout(this.previewEndTimer)
+    this.fadeOutPreview(this.ctx.currentTime)
     if (this.voices) releaseVoices(this.ctx, this.voices)
   }
 

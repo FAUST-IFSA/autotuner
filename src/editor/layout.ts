@@ -17,8 +17,6 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 /** Top edge of the row for a MIDI note, in grid content coordinates. */
 export const midiToY = (midi: number) => (MIDI_MAX - midi) * ROW_HEIGHT
 
-export const yToMidi = (y: number) => clamp(MIDI_MAX - Math.round(y / ROW_HEIGHT), MIDI_MIN, MIDI_MAX)
-
 /** Fractional pitch at a grid content y (row centres are whole semitones). */
 export const pitchAtY = (y: number) => MIDI_MAX + 0.5 - y / ROW_HEIGHT
 

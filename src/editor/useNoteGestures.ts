@@ -180,7 +180,12 @@ export function useNoteGestures({
     onPointerMove,
     onPointerUp,
     onPointerCancel: () => {
-      if (gesture?.kind === 'drag') onRelease()
+      // The browser took the pointer mid-drag: keep the pitch the note was moved to, and record it so
+      // Undo can revert it (it's already applied as a preview).
+      if (gesture?.kind === 'drag') {
+        onRelease()
+        if (gesture.active) onCommit(gesture.edit)
+      }
       setGesture(null)
     },
     onPointerLeave: () => !gesture && setHovered(null),

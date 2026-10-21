@@ -77,6 +77,11 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
           {project.buffer.duration.toFixed(1)}s · {notes.length} notes
           {selection.size > 0 && ` · ${selection.size} selected`}
         </span>
+        {project.approximateNotes && (
+          <span className="notice" role="status">
+            Note detection was unavailable, so these notes are approximate. Reload and try again.
+          </span>
+        )}
         <div className="editor-tools">
           <button
             type="button"
@@ -120,6 +125,7 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
         onGrab={grab}
         onGrabShift={grabShift}
         onRelease={release}
+        shortcutsEnabled={!suspended}
       />
       <ExportBar project={project} onExported={onExported} />
     </main>
