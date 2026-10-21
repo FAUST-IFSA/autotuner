@@ -1,6 +1,9 @@
 import SignalsmithStretch, { type StretchNode } from 'signalsmith-stretch'
 import type { NoteSegment } from '../types'
+import { copyChannels } from './channels'
+import { shiftOf } from './music'
 import { ShiftScheduler, type ShiftChange, type TimedChange, buildSchedule, shiftAt } from './schedule'
+import { VOICE, outputLatencyOf } from './stretch'
 
 /** Drag preview block size: ~21 ms node latency instead of ~58 ms (Phase 0, spike 1). */
 const PREVIEW_BLOCK_MS = 40
@@ -13,9 +16,6 @@ const TICK_SECONDS = 0.02
 
 /** What a playback listener hears about: playback starting or stopping (paused, or at the end), or a seek. */
 export type PlaybackEvent = 'play' | 'pause' | 'end' | 'seek'
-
-/** Formant compensation keeps a shifted voice from sounding chipmunk-like or muffled. */
-export const VOICE = { formantCompensation: true, formantBaseHz: 0 } as const
 
 /** A playback node and a preview node, each behind its own fade gain. */
 interface Voices {
@@ -45,9 +45,8 @@ async function acquireVoices(ctx: AudioContext): Promise<Voices> {
   const previewGain = new GainNode(ctx, { gain: 0 })
   player.connect(playerGain).connect(ctx.destination)
   previewer.connect(previewGain).connect(ctx.destination)
-  // latency() is input + output latency; output latency is half (Phase 0, spike 2).
-  const outputLatency = (await player.latency()) / 2
-  const previewOutputLatency = (await previewer.latency()) / 2
+  const outputLatency = await outputLatencyOf(player)
+  const previewOutputLatency = await outputLatencyOf(previewer)
   return { player, playerGain, previewer, previewGain, outputLatency, previewOutputLatency }
 }
 
@@ -61,12 +60,6 @@ function releaseVoices(ctx: AudioContext, voices: Voices) {
     void voices.previewer.dropBuffers()
     pool.push(voices)
   }, 100)
-}
-
-function copyChannels(buffer: AudioBuffer, from = 0, to = buffer.duration): Float32Array[] {
-  const a = Math.max(0, Math.floor(from * buffer.sampleRate))
-  const b = Math.min(buffer.length, Math.ceil(to * buffer.sampleRate))
-  return Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c).slice(a, b))
 }
 
 /**
@@ -269,7 +262,7 @@ export class AudioEngine {
    */
   async playNote(note: NoteSegment) {
     if (this.disposed || this.playing || this.previewing) return
-    this.previewSemitones = note.midi - note.detectedMidi
+    this.previewSemitones = shiftOf(note)
     await this.loadPreview(note, false)
   }
 
@@ -278,7 +271,7 @@ export class AudioEngine {
     const token = ++this.previewToken
     window.clearTimeout(this.previewEndTimer)
     this.previewLoaded = false
-    this.previewSemitones = note.midi - note.detectedMidi
+    this.previewSemitones = shiftOf(note)
     await this.ctx.resume()
     const from = Math.max(0, note.start - PREVIEW_PRE_ROLL)
     const slice = copyChannels(this.buffer, from, note.end)

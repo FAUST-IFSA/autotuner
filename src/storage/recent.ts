@@ -1,5 +1,6 @@
 import { del, get, set } from 'idb-keyval'
 import { decodeAudioFile } from '../audio/decode'
+import { isEdited } from '../audio/music'
 import type { F0Curve, NoteSegment, Peaks, Project } from '../types'
 
 export const MAX_RECENT = 10
@@ -46,7 +47,7 @@ const summarize = (project: Project, lastOpened: number): RecentSummary => ({
   fileName: project.fileName,
   durationSec: project.buffer.duration,
   noteCount: project.notes.length,
-  editedCount: project.notes.filter((n) => Math.abs(n.midi - n.detectedMidi) > 1e-6).length,
+  editedCount: project.notes.filter(isEdited).length,
   lastOpened,
 })
 

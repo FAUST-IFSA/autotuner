@@ -1,14 +1,11 @@
 import SignalsmithStretch from 'signalsmith-stretch'
 import type { NoteSegment } from '../types'
-import { VOICE } from './AudioEngine'
+import { copyChannels } from './channels'
 import { ShiftScheduler, buildSchedule } from './schedule'
+import { VOICE, outputLatencyOf } from './stretch'
 
 /** Extra suspends (seconds apart) so long passages without edits still report progress. */
 const PROGRESS_STEP = 1
-
-export function channelsOf(buffer: AudioBuffer): Float32Array[] {
-  return Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c).slice())
-}
 
 /** Plain sample-rate conversion (used before an MP3 render of a >48 kHz recording). */
 export function resample(buffer: AudioBuffer, sampleRate: number): Promise<AudioBuffer> {
@@ -47,12 +44,12 @@ export async function renderTuned(
     outputChannelCount: [numberOfChannels],
   })
   node.connect(ctx.destination)
-  const channels = channelsOf(buffer)
+  const channels = copyChannels(buffer)
   await node.addBuffers(
     channels,
     channels.map((c) => c.buffer),
   )
-  const outputLatency = (await node.latency()) / 2
+  const outputLatency = await outputLatencyOf(node)
 
   const pending: Promise<unknown>[] = []
   const scheduler = new ShiftScheduler((change, outputTime) => {

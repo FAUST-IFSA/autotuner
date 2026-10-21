@@ -1,5 +1,6 @@
 import type { Project } from '../types'
-import { channelsOf, renderTuned, resample } from './export'
+import { copyChannels } from './channels'
+import { renderTuned, resample } from './export'
 import { MP3_MAX_SAMPLE_RATE } from './mp3Limits'
 import type { Mp3Message, Mp3Request } from './mp3.worker'
 import { encodeWav } from './wav'
@@ -48,7 +49,7 @@ export async function exportTuned(
   // MP3 tops out at 48 kHz; WAV always keeps the original rate.
   if (format === 'mp3' && source.sampleRate > MP3_MAX_SAMPLE_RATE) source = await resample(source, MP3_MAX_SAMPLE_RATE)
   const rendered = await renderTuned(source, project.notes, render)
-  const channels = channelsOf(rendered)
+  const channels = copyChannels(rendered)
   const blob =
     format === 'wav'
       ? new Blob([encodeWav(channels, rendered.sampleRate)], { type: 'audio/wav' })

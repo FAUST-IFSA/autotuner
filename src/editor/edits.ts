@@ -1,3 +1,4 @@
+import { isEdited } from '../audio/music'
 import type { NoteSegment } from '../types'
 import { MIDI_MAX, MIDI_MIN, clamp } from './layout'
 
@@ -22,10 +23,6 @@ export const FINE_STEP = 0.01
 export const FINE_KEY_STEP = 0.1
 
 export const emptyHistory: History = { past: [], future: [] }
-
-export const shiftOf = (note: NoteSegment) => note.midi - note.detectedMidi
-
-export const isEdited = (note: NoteSegment) => Math.abs(shiftOf(note)) > 1e-6
 
 /** Applies an edit's `to` (or, undoing, its `from`) values. Untouched notes keep their identity. */
 export function applyEdit(notes: NoteSegment[], edit: Edit, direction: 'to' | 'from' = 'to'): NoteSegment[] {

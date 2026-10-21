@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { type ExportFormat, type ExportStatus, exportTuned, saveFile } from '../audio/exportFile'
-import { isEdited } from '../editor/edits'
+import { isEdited } from '../audio/music'
 import type { Project } from '../types'
 
 interface Props {

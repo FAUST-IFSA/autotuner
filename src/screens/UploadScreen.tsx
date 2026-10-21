@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { loadAudioFile } from '../audio/decode'
+import { loadAudioFile } from '../audio/loadAudioFile'
 import { RecentFiles } from '../components/RecentFiles'
 import { openRecent, saveRecent } from '../storage/recent'
 import type { Project } from '../types'

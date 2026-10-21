@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { isEdited } from '../audio/music'
 import type { NoteSegment } from '../types'
 import {
   MAX_HISTORY,
   applyEdit,
   effective,
   emptyHistory,
-  isEdited,
   isOffPitch,
   nudgeNotes,
   record,
