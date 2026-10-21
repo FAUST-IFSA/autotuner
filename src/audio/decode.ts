@@ -8,7 +8,8 @@ export function getAudioContext(): AudioContext {
 
 /**
  * Decodes a file through the shared context. decodeAudioData resamples to the context's rate (the output
- * device's), so the buffer, playback and export are all at that rate, not necessarily the file's own.
+ * device's), so the project's buffer and playback are at that rate; export goes back to the file's own rate
+ * (see exportFile.ts).
  */
 export async function decodeAudioFile(file: Blob, name: string): Promise<AudioBuffer> {
   const data = await file.arrayBuffer()
