@@ -29,3 +29,7 @@ fixtures/*.mp3
 fixtures/*.m4a
 fixtures/*.flac
 .claude/
+
+# Copied from node_modules by scripts/copy-assets.mjs
+public/models/
+public/tfjs-wasm/

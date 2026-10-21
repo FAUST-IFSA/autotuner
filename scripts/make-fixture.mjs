@@ -1,7 +1,10 @@
 // Generates a synthetic, vocal-like test file with known ground truth.
 // Harmonic tone with a vowel-ish spectral envelope, vibrato, scoops, breath noise and gaps.
-// Usage: node scripts/make-fixture.mjs  -> fixtures/synth-vocal-{44k-stereo,22k-mono}.wav + .truth.json
+// Usage: node scripts/make-fixture.mjs [--if-missing]
+//   -> fixtures/synth-vocal-{44k-stereo,22k-mono}.wav + .truth.json
 import fs from 'node:fs';
+
+if (process.argv.includes('--if-missing') && fs.existsSync('fixtures/synth-vocal-22k-mono.wav')) process.exit(0);
 
 function encodeWav(channels, sampleRate) {
   const n = channels[0].length,
