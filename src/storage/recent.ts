@@ -51,49 +51,69 @@ const summarize = (project: Project, lastOpened: number): RecentSummary => ({
   lastOpened,
 })
 
+/**
+ * Every write runs here, one at a time and in order. Writes read-modify-write the index, so overlapping ones
+ * could overwrite each other; and the list shown right after closing a project must include the save that
+ * closing started.
+ */
+let writes: Promise<unknown> = Promise.resolve()
+function serially<T>(task: () => Promise<T>): Promise<T> {
+  const run = writes.then(task, task)
+  writes = run.catch(() => {})
+  return run
+}
+
+const readIndex = async () => (await get<RecentSummary[]>(INDEX_KEY)) ?? []
+
+/** The list, after any save still in progress has finished. */
 export async function listRecent(): Promise<RecentSummary[]> {
-  return (await get<RecentSummary[]>(INDEX_KEY)) ?? []
+  await writes
+  return readIndex()
 }
 
 async function touch(project: Project, opened: number) {
-  const { index, dropped } = updateIndex(await listRecent(), summarize(project, opened))
+  const { index, dropped } = updateIndex(await readIndex(), summarize(project, opened))
   await set(INDEX_KEY, index)
   await Promise.all(dropped.flatMap((id) => [del(projectKey(id)), del(notesKey(id))]))
 }
 
 /** Saves a newly analysed project at the top of the list. Storage problems are only logged. */
-export async function saveRecent(project: Project): Promise<void> {
-  try {
-    const stored: StoredProject = {
-      id: project.id,
-      fileName: project.fileName,
-      file: project.file,
-      peaks: project.peaks,
-      f0: project.f0,
+export function saveRecent(project: Project): Promise<void> {
+  return serially(async () => {
+    try {
+      const stored: StoredProject = {
+        id: project.id,
+        fileName: project.fileName,
+        file: project.file,
+        peaks: project.peaks,
+        f0: project.f0,
+      }
+      await set(projectKey(project.id), stored)
+      await set(notesKey(project.id), project.notes)
+      await touch(project, Date.now())
+    } catch (err) {
+      console.warn('Could not save to recent files', err)
     }
-    await set(projectKey(project.id), stored)
-    await set(notesKey(project.id), project.notes)
-    await touch(project, Date.now())
-  } catch (err) {
-    console.warn('Could not save to recent files', err)
-  }
+  })
 }
 
 /** Saves just the edits (called as notes change); keeps the list order. */
-export async function saveRecentNotes(project: Project): Promise<void> {
-  try {
-    if (!(await get(projectKey(project.id)))) return
-    await set(notesKey(project.id), project.notes)
-    const index = await listRecent()
-    const entry = index.find((r) => r.id === project.id)
-    if (entry)
-      await set(
-        INDEX_KEY,
-        index.map((r) => (r.id === project.id ? summarize(project, r.lastOpened) : r)),
-      )
-  } catch (err) {
-    console.warn('Could not save edits to recent files', err)
-  }
+export function saveRecentNotes(project: Project): Promise<void> {
+  return serially(async () => {
+    try {
+      if (!(await get(projectKey(project.id)))) return
+      await set(notesKey(project.id), project.notes)
+      const index = await readIndex()
+      const entry = index.find((r) => r.id === project.id)
+      if (entry)
+        await set(
+          INDEX_KEY,
+          index.map((r) => (r.id === project.id ? summarize(project, r.lastOpened) : r)),
+        )
+    } catch (err) {
+      console.warn('Could not save edits to recent files', err)
+    }
+  })
 }
 
 /** Reopens a project: decodes the stored original, reuses the stored analysis and edits. */
@@ -102,14 +122,16 @@ export async function openRecent(id: string): Promise<Project> {
   if (!stored || !notes) throw new Error('That project is no longer in recent files.')
   const buffer = await decodeAudioFile(stored.file, stored.fileName)
   const project: Project = { ...stored, notes, buffer }
-  await touch(project, Date.now()).catch((err) => console.warn('Could not update recent files', err))
+  await serially(() => touch(project, Date.now())).catch((err) => console.warn('Could not update recent files', err))
   return project
 }
 
-export async function deleteRecent(id: string): Promise<void> {
-  await Promise.all([del(projectKey(id)), del(notesKey(id))])
-  await set(
-    INDEX_KEY,
-    (await listRecent()).filter((r) => r.id !== id),
-  )
+export function deleteRecent(id: string): Promise<void> {
+  return serially(async () => {
+    await Promise.all([del(projectKey(id)), del(notesKey(id))])
+    await set(
+      INDEX_KEY,
+      (await readIndex()).filter((r) => r.id !== id),
+    )
+  })
 }
