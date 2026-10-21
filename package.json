@@ -14,9 +14,11 @@
     "licenses:check": "node scripts/licenses-check.mjs"
   },
   "dependencies": {
+    "@breezystack/lamejs": "1.2.7",
     "@spotify/basic-pitch": "1.0.1",
     "@tensorflow/tfjs": "4.22.0",
     "@tensorflow/tfjs-backend-wasm": "4.22.0",
+    "idb-keyval": "6.3.0",
     "konva": "^10.7.1",
     "pitchy": "4.1.0",
     "react": "^19.2.8",

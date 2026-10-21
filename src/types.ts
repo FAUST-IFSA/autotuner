@@ -31,6 +31,10 @@ export interface F0Curve {
 }
 
 export interface Project {
+  /** Stable id, also the recent-files key. */
+  id: string
+  /** The original upload, kept so the project can be reopened from recent files. */
+  file: Blob
   fileName: string
   buffer: AudioBuffer
   peaks: Peaks

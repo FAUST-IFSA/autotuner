@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAudioEngine } from '../audio/useAudioEngine'
+import { ControlsMenu } from '../components/ControlsMenu'
 import { ExportBar } from '../components/ExportBar'
 import { Transport } from '../components/Transport'
 import {
@@ -24,19 +25,27 @@ interface Props {
   project: Project
   onNotesChange: (update: (notes: NoteSegment[]) => NoteSegment[]) => void
   onReset: () => void
+  onExported: (fileName: string) => void
+  /** Covered by another screen: keyboard shortcuts are off. */
+  suspended?: boolean
 }
 
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement && (target.isContentEditable || ['TEXTAREA', 'SELECT'].includes(target.tagName) ||
     (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'checkbox'))
 
-export function EditorScreen({ project, onNotesChange, onReset }: Props) {
+export function EditorScreen({ project, onNotesChange, onReset, onExported, suspended = false }: Props) {
   const { notes } = project
   const [selection, setSelection] = useState<Set<string>>(() => new Set())
   const [snap, setSnap] = useState(true)
   const [history, setHistory] = useState<History>(emptyHistory)
   const { engine, playing, error: audioError } = useAudioEngine(project.buffer)
   const [playheadRevision, setPlayheadRevision] = useState(0)
+
+  // Covered by the Downloaded screen: stop the sound.
+  useEffect(() => {
+    if (suspended) engine?.pause()
+  }, [suspended, engine])
 
   // Playback follows edits as they happen, including mid-drag.
   useEffect(() => engine?.setNotes(notes), [engine, notes])
@@ -110,8 +119,11 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
   const canReset = notes.some((n) => resetTarget.has(n.id) && isEdited(n))
 
   useEffect(() => {
+    if (suspended) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping(e.target)) return
+      // A button reached with Tab keeps Space/Enter for itself.
+      if ((e.key === ' ' || e.key === 'Enter') && e.target instanceof HTMLButtonElement) return
       const mod = e.metaKey || e.ctrlKey
       const key = e.key.toLowerCase()
 
@@ -146,10 +158,16 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [notes, selection, snap, apply, step, togglePlay, skip, toStart, engine])
+  }, [notes, selection, snap, apply, step, togglePlay, skip, toStart, engine, suspended])
 
   return (
-    <main className="editor-screen">
+    <main
+      className="editor-screen"
+      // Mouse clicks don't leave focus on buttons, so Space keeps meaning play/pause after a click.
+      onMouseDown={(e) => {
+        if ((e.target as HTMLElement).closest('button')) e.preventDefault()
+      }}
+    >
       <header className="editor-header">
         <button type="button" onClick={onReset}>
           ← New file
@@ -204,9 +222,7 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
           </button>
         </div>
         {audioError && <span className="error">Playback isn't available: {audioError}</span>}
-        <span className="hint">
-          Space play · Enter to start · &lt; &gt; previous/next note · ←/→ select notes · Drag notes to retune (Alt for fine steps) · Drag empty space to select · ⌘/Ctrl + scroll or ⌘/Ctrl + ←/→ to zoom
-        </span>
+        <ControlsMenu />
       </header>
       <PitchEditor
         peaks={project.peaks}
@@ -226,7 +242,7 @@ export function EditorScreen({ project, onNotesChange, onReset }: Props) {
         onGrabShift={grabShift}
         onRelease={release}
       />
-      <ExportBar project={project} />
+      <ExportBar project={project} onExported={onExported} />
     </main>
   )
 }

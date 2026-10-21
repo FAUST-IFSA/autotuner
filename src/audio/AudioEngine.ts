@@ -11,7 +11,8 @@ const FADE_SECONDS = 0.012
 /** How often the playback node reports back; each report drives the just-in-time scheduler. */
 const TICK_SECONDS = 0.02
 
-const VOICE = { formantCompensation: true, formantBaseHz: 0 } as const
+/** Formant compensation keeps a shifted voice from sounding chipmunk-like or muffled. */
+export const VOICE = { formantCompensation: true, formantBaseHz: 0 } as const
 
 /** A playback node and a preview node, each behind its own fade gain. */
 interface Voices {
