@@ -10,6 +10,7 @@ npm run build   # type-check and production build
 npm run lint
 npm test        # unit tests + pitch-accuracy test on a generated vocal
 npm run licenses:check
+npm run format         # Prettier (format:check in CI)
 ```
 
 Stack: React + TypeScript (Vite), Konva via `react-konva` for the editor canvas, `react-dropzone` for uploads.

@@ -23,7 +23,12 @@ declare module 'signalsmith-stretch' {
     stop(when?: number): Promise<unknown>
     addBuffers(channels: Float32Array[], transfer?: Transferable[]): Promise<number>
     dropBuffers(toSeconds?: number): Promise<{ start: number; end: number }>
-    configure(config: { blockMs?: number; intervalMs?: number; splitComputation?: boolean; preset?: string }): Promise<unknown>
+    configure(config: {
+      blockMs?: number
+      intervalMs?: number
+      splitComputation?: boolean
+      preset?: string
+    }): Promise<unknown>
     latency(): Promise<number>
     setUpdateInterval(seconds: number, callback?: (inputTime: number) => void): Promise<unknown>
   }

@@ -6,7 +6,8 @@ interface Props {
   onOpen: (id: string) => void
 }
 
-const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
+const formatDuration = (seconds: number) =>
+  `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
 
 const formatWhen = (ms: number) => {
   const minutes = Math.round((Date.now() - ms) / 60000)
@@ -41,8 +42,9 @@ export function RecentFiles({ disabled, onOpen }: Props) {
             <button type="button" className="recent-open" onClick={() => onOpen(r.id)} disabled={disabled}>
               <span className="recent-name">{r.fileName}</span>
               <span className="recent-meta">
-                {formatDuration(r.durationSec)} · {r.editedCount ? `${r.editedCount} of ${r.noteCount} notes edited` : `${r.noteCount} notes`}{' '}
-                · {formatWhen(r.lastOpened)}
+                {formatDuration(r.durationSec)} ·{' '}
+                {r.editedCount ? `${r.editedCount} of ${r.noteCount} notes edited` : `${r.noteCount} notes`} ·{' '}
+                {formatWhen(r.lastOpened)}
               </span>
             </button>
             <button

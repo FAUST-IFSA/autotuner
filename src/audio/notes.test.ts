@@ -75,7 +75,11 @@ describe('mergeFragments', () => {
 
 describe('dropOutliers', () => {
   // 10 ms frames; voiced at 60 for the first second, at 72 between 1.3 s and 1.45 s.
-  const midi = Array.from({ length: 300 }, (_, i) => (i < 100 ? 60 : i >= 130 && i < 145 ? 72 : null))
+  const pitchAt = (i: number) => {
+    if (i < 100) return 60
+    return i >= 130 && i < 145 ? 72 : null
+  }
+  const midi = Array.from({ length: 300 }, (_, i) => pitchAt(i))
   const f0 = { hopSec: 0.01, midi, clarity: midi.map(() => 0.9) }
   const melody = [seg(0, 0.5, 60), seg(0.5, 1, 61), seg(1.6, 2, 60)]
 

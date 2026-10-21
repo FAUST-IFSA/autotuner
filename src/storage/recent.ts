@@ -85,7 +85,11 @@ export async function saveRecentNotes(project: Project): Promise<void> {
     await set(notesKey(project.id), project.notes)
     const index = await listRecent()
     const entry = index.find((r) => r.id === project.id)
-    if (entry) await set(INDEX_KEY, index.map((r) => (r.id === project.id ? summarize(project, r.lastOpened) : r)))
+    if (entry)
+      await set(
+        INDEX_KEY,
+        index.map((r) => (r.id === project.id ? summarize(project, r.lastOpened) : r)),
+      )
   } catch (err) {
     console.warn('Could not save edits to recent files', err)
   }

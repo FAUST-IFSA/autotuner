@@ -11,8 +11,8 @@ export function channelsOf(buffer: AudioBuffer): Float32Array[] {
 }
 
 /** Plain sample-rate conversion (used before an MP3 render of a >48 kHz recording). */
-export async function resample(buffer: AudioBuffer, sampleRate: number): Promise<AudioBuffer> {
-  if (buffer.sampleRate === sampleRate) return buffer
+export function resample(buffer: AudioBuffer, sampleRate: number): Promise<AudioBuffer> {
+  if (buffer.sampleRate === sampleRate) return Promise.resolve(buffer)
   const ctx = new OfflineAudioContext(buffer.numberOfChannels, Math.ceil(buffer.duration * sampleRate), sampleRate)
   const source = new AudioBufferSourceNode(ctx, { buffer })
   source.connect(ctx.destination)
@@ -48,7 +48,10 @@ export async function renderTuned(
   })
   node.connect(ctx.destination)
   const channels = channelsOf(buffer)
-  await node.addBuffers(channels, channels.map((c) => c.buffer))
+  await node.addBuffers(
+    channels,
+    channels.map((c) => c.buffer),
+  )
   const outputLatency = (await node.latency()) / 2
 
   const pending: Promise<unknown>[] = []
@@ -69,7 +72,7 @@ export async function renderTuned(
   const times = new Set<number>()
   for (const c of schedule.slice(1)) times.add(Math.ceil((c.t - outputLatency) / quantum) * quantum)
   for (let t = PROGRESS_STEP; t < end; t += PROGRESS_STEP) times.add(Math.ceil(t / quantum) * quantum)
-  for (const t of [...times].filter((t) => t > 0 && t < end).sort((a, b) => a - b)) {
+  for (const t of [...times].filter((time) => time > 0 && time < end).sort((a, b) => a - b)) {
     void ctx.suspend(t).then(async () => {
       scheduler.tick(ctx.currentTime)
       // The worklet must have the change before rendering continues.
@@ -83,4 +86,3 @@ export async function renderTuned(
   onProgress(1)
   return rendered
 }
-

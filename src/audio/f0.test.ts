@@ -73,7 +73,13 @@ describe('weak frames inside notes', () => {
 
   it('shows weak frames only inside a matching note', () => {
     expect(curveForDisplay(f0, []).midi).toEqual([null, null, null, null, null])
-    expect(curveForDisplay(f0, [{ start: 0, end: 0.04, detectedMidi: 60 }]).midi).toEqual([60.1, 60.2, 60.1, null, null])
+    expect(curveForDisplay(f0, [{ start: 0, end: 0.04, detectedMidi: 60 }]).midi).toEqual([
+      60.1,
+      60.2,
+      60.1,
+      null,
+      null,
+    ])
   })
 })
 

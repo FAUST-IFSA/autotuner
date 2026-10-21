@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react'
+import type { AudioEngine } from '../audio/AudioEngine'
 
 interface Props {
+  /** Source of the position readout (null while loading or unavailable: shows 0:00.0). */
+  engine: AudioEngine | null
   playing: boolean
-  /** Bumped on seeks so a paused position redraws. */
-  revision: number
   disabled: boolean
   duration: number
-  getTime: () => number
   onToggle: () => void
   onToStart: () => void
   onRewind: () => void
@@ -17,6 +17,10 @@ const format = (seconds: number) => {
   const m = Math.floor(seconds / 60)
   const s = seconds - m * 60
   return `${m}:${s.toFixed(1).padStart(4, '0')}`
+}
+
+const showTime = (span: HTMLSpanElement | null, engine: AudioEngine | null) => {
+  if (span) span.textContent = format(engine?.currentTime ?? 0)
 }
 
 const icons = {
@@ -37,11 +41,10 @@ function Icon({ name }: { name: keyof typeof icons }) {
 
 /** Transport controls plus a position readout that updates every frame without re-rendering React. */
 export function Transport({
+  engine,
   playing,
-  revision,
   disabled,
   duration,
-  getTime,
   onToggle,
   onToStart,
   onRewind,
@@ -49,23 +52,45 @@ export function Transport({
 }: Props) {
   const timeRef = useRef<HTMLSpanElement>(null)
 
+  // Every frame while playing, and once whenever playback starts or stops.
   useEffect(() => {
     let frame = 0
     const update = () => {
-      if (timeRef.current) timeRef.current.textContent = format(getTime())
+      showTime(timeRef.current, engine)
       if (playing) frame = requestAnimationFrame(update)
     }
     update()
     return () => cancelAnimationFrame(frame)
-  }, [playing, revision, getTime])
+  }, [engine, playing])
+
+  // A seek moves the position without re-rendering anything.
+  useEffect(
+    () =>
+      engine?.subscribe((event) => {
+        if (event === 'seek') showTime(timeRef.current, engine)
+      }),
+    [engine],
+  )
 
   return (
     <div className="transport">
       <div className="transport-buttons" role="group" aria-label="Transport">
-        <button type="button" onClick={onToStart} disabled={disabled} title="Back to start (Enter)" aria-label="Back to start">
+        <button
+          type="button"
+          onClick={onToStart}
+          disabled={disabled}
+          title="Back to start (Enter)"
+          aria-label="Back to start"
+        >
           <Icon name="toStart" />
         </button>
-        <button type="button" onClick={onRewind} disabled={disabled} title="Previous note (<)" aria-label="Previous note">
+        <button
+          type="button"
+          onClick={onRewind}
+          disabled={disabled}
+          title="Previous note (<)"
+          aria-label="Previous note"
+        >
           <Icon name="rewind" />
         </button>
         <button

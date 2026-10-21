@@ -15,9 +15,7 @@ export interface AnalysisRequest {
 export type AnalysisResult = Pick<Project, 'peaks' | 'notes' | 'f0'> & { usedFallback: boolean }
 
 export type AnalysisMessage =
-  | { type: 'progress'; fraction: number }
-  | { type: 'done'; result: AnalysisResult }
-  | { type: 'error'; message: string }
+  { type: 'progress'; fraction: number } | { type: 'done'; result: AnalysisResult } | { type: 'error'; message: string }
 
 // Self-hosted assets, copied into public/ by scripts/copy-assets.mjs.
 const base = new URL(import.meta.env.BASE_URL, self.location.origin).href

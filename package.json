@@ -11,7 +11,9 @@
     "postinstall": "node scripts/copy-assets.mjs",
     "pretest": "node scripts/make-fixture.mjs --if-missing",
     "test": "vitest run",
-    "licenses:check": "node scripts/licenses-check.mjs"
+    "licenses:check": "node scripts/licenses-check.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@breezystack/lamejs": "1.2.7",
@@ -34,6 +36,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "license-checker-rseidelsohn": "5.0.1",
     "oxlint": "^1.81.0",
+    "prettier": "3.9.9",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vitest": "5.0.3"

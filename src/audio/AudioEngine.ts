@@ -11,6 +11,9 @@ const FADE_SECONDS = 0.012
 /** How often the playback node reports back; each report drives the just-in-time scheduler. */
 const TICK_SECONDS = 0.02
 
+/** What a playback listener hears about: playback starting or stopping (paused, or at the end), or a seek. */
+export type PlaybackEvent = 'play' | 'pause' | 'end' | 'seek'
+
 /** Formant compensation keeps a shifted voice from sounding chipmunk-like or muffled. */
 export const VOICE = { formantCompensation: true, formantBaseHz: 0 } as const
 
@@ -72,9 +75,6 @@ function copyChannels(buffer: AudioBuffer, from = 0, to = buffer.duration): Floa
  * ahead of time.
  */
 export class AudioEngine {
-  /** Fires when playback starts or stops (including reaching the end). */
-  onPlayingChange: (playing: boolean) => void = () => {}
-
   private schedule: ShiftChange[] = [{ t: 0, semitones: 0 }]
   private scheduler: ShiftScheduler
   private playing = false
@@ -92,6 +92,7 @@ export class AudioEngine {
   private previewEndTimer: number | undefined
   private resumeAfterPreview = false
   private disposed = false
+  private readonly listeners = new Set<(event: PlaybackEvent) => void>()
   private voices: Voices | null = null
   private previewOutputLatency = 0.02
   private readonly ctx: AudioContext
@@ -119,14 +120,22 @@ export class AudioEngine {
     this.previewGain = previewGain
     this.outputLatency = outputLatency
     this.scheduler = new ShiftScheduler((change, outputTime) => {
-      void player.schedule({ output: change.output, outputTime, semitones: change.semitones, active: change.active ?? true })
+      void player.schedule({
+        output: change.output,
+        outputTime,
+        semitones: change.semitones,
+        active: change.active ?? true,
+      })
     }, outputLatency)
   }
 
   static async create(ctx: AudioContext, buffer: AudioBuffer): Promise<AudioEngine> {
     const voices = await acquireVoices(ctx)
     const channels = copyChannels(buffer)
-    await voices.player.addBuffers(channels, channels.map((c) => c.buffer))
+    await voices.player.addBuffers(
+      channels,
+      channels.map((c) => c.buffer),
+    )
     const { player, playerGain, previewer, previewGain, outputLatency } = voices
     const engine = new AudioEngine(ctx, buffer, player, playerGain, previewer, previewGain, outputLatency)
     engine.voices = voices
@@ -148,6 +157,14 @@ export class AudioEngine {
     if (!this.playing) return this.position
     const heard = this.ctx.currentTime - (this.ctx.outputLatency || 0) - this.ctx.baseLatency
     return Math.min(this.buffer.duration, Math.max(this.from, this.from + heard - this.startOutput))
+  }
+
+  /** Calls `listener` when playback starts or stops (including reaching the end) and on every seek. */
+  subscribe(listener: (event: PlaybackEvent) => void) {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
   }
 
   /** Call whenever notes change; playback picks up the new shifts within ~60 ms. */
@@ -187,14 +204,14 @@ export class AudioEngine {
     this.playing = true
     // Worklet time reports keep the scheduler fed; this timer covers the end of the file and hidden tabs.
     this.ticker = window.setInterval(() => this.tick(), 50)
-    this.onPlayingChange(true)
+    this.notify('play')
   }
 
   pause() {
     if (!this.playing) return
     this.position = this.currentTime
     this.halt()
-    this.onPlayingChange(false)
+    this.notify('pause')
   }
 
   /** Jumps to `seconds`; keeps playing if playing. */
@@ -202,6 +219,7 @@ export class AudioEngine {
     const t = Math.min(this.buffer.duration, Math.max(0, seconds))
     if (this.playing) void this.play(t)
     else this.position = t
+    this.notify('seek')
   }
 
   /**
@@ -265,7 +283,10 @@ export class AudioEngine {
     // Measure before addBuffers: transferring the arrays to the worklet empties them.
     const length = slice[0].length / this.buffer.sampleRate
     await this.previewer.dropBuffers()
-    await this.previewer.addBuffers(slice, slice.map((c) => c.buffer))
+    await this.previewer.addBuffers(
+      slice,
+      slice.map((c) => c.buffer),
+    )
     // A newer preview started, or the held note was released, while the audio loaded.
     if (token !== this.previewToken || (loop && !this.previewing)) return
     this.previewLoaded = true
@@ -287,9 +308,12 @@ export class AudioEngine {
     gain.setValueAtTime(0, now)
     gain.linearRampToValueAtTime(1, now + FADE_SECONDS)
     if (!loop) {
-      this.previewEndTimer = window.setTimeout(() => {
-        if (token === this.previewToken && !this.previewing) this.fadeOutPreview(this.ctx.currentTime)
-      }, (length + this.previewOutputLatency) * 1000)
+      this.previewEndTimer = window.setTimeout(
+        () => {
+          if (token === this.previewToken && !this.previewing) this.fadeOutPreview(this.ctx.currentTime)
+        },
+        (length + this.previewOutputLatency) * 1000,
+      )
     }
   }
 
@@ -352,7 +376,11 @@ export class AudioEngine {
     if (this.currentTime >= this.buffer.duration) {
       this.position = this.buffer.duration
       this.halt()
-      this.onPlayingChange(false)
+      this.notify('end')
     }
+  }
+
+  private notify(event: PlaybackEvent) {
+    for (const listener of this.listeners) listener(event)
   }
 }

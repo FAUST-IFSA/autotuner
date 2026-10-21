@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { type ReactNode, useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { loadAudioFile } from '../audio/decode'
 import { RecentFiles } from '../components/RecentFiles'
@@ -54,22 +54,25 @@ export function UploadScreen({ onLoaded }: Props) {
     disabled: processing || opening,
   })
 
+  let status: ReactNode
+  if (opening) status = <p>Opening…</p>
+  else if (processing) status = <p>Finding the notes in your vocal… {Math.round(progress * 100)}%</p>
+  else {
+    status = (
+      <>
+        <p className="dropzone-title">{isDragActive ? 'Drop it here' : 'Drag an audio file here'}</p>
+        <p className="dropzone-hint">or click to browse · WAV, MP3, OGG, FLAC</p>
+      </>
+    )
+  }
+
   return (
     <main className="upload-screen">
       <h1>Faust Studio Autotuner</h1>
       <p className="subtitle">Drop a vocal to autotune!</p>
       <div {...getRootProps({ className: `dropzone${isDragActive ? ' active' : ''}${processing ? ' busy' : ''}` })}>
         <input {...getInputProps()} />
-        {opening ? (
-          <p>Opening…</p>
-        ) : processing ? (
-          <p>Finding the notes in your vocal… {Math.round(progress * 100)}%</p>
-        ) : (
-          <>
-            <p className="dropzone-title">{isDragActive ? 'Drop it here' : 'Drag an audio file here'}</p>
-            <p className="dropzone-hint">or click to browse · WAV, MP3, OGG, FLAC</p>
-          </>
-        )}
+        {status}
       </div>
       {error && <p className="error">{error}</p>}
       <RecentFiles disabled={processing || opening} onOpen={openProject} />

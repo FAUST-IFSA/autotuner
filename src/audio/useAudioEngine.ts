@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { AudioEngine } from './AudioEngine'
 import { getAudioContext } from './decode'
 
 /** Creates the audio engine for a recording and tears it down when the editor closes. */
 export function useAudioEngine(buffer: AudioBuffer) {
   const [engine, setEngine] = useState<AudioEngine | null>(null)
-  const [playing, setPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -15,7 +14,6 @@ export function useAudioEngine(buffer: AudioBuffer) {
       (e) => {
         if (cancelled) return e.dispose()
         created = e
-        e.onPlayingChange = setPlaying
         setEngine(e)
         // Dev builds expose the live engine for src/dev/audioChecks.ts and console debugging.
         if (import.meta.env.DEV) Object.assign(window, { __audioEngine: e })
@@ -26,9 +24,12 @@ export function useAudioEngine(buffer: AudioBuffer) {
       cancelled = true
       created?.dispose()
       setEngine(null)
-      setPlaying(false)
     }
   }, [buffer])
+
+  // Read from the engine itself (false while there is none), so it can't drift from what is heard.
+  const subscribe = useCallback((onChange: () => void) => engine?.subscribe(onChange) ?? (() => {}), [engine])
+  const playing = useSyncExternalStore(subscribe, () => engine?.isPlaying ?? false)
 
   return { engine, playing, error }
 }

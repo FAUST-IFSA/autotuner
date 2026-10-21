@@ -73,6 +73,7 @@ describe('analyzePitch on the synthetic vocal', () => {
   })
 
   it('returns notes in order without overlaps', () => {
-    for (let i = 1; i < result.notes.length; i++) expect(result.notes[i].start).toBeGreaterThanOrEqual(result.notes[i - 1].end)
+    for (let i = 1; i < result.notes.length; i++)
+      expect(result.notes[i].start).toBeGreaterThanOrEqual(result.notes[i - 1].end)
   })
 })

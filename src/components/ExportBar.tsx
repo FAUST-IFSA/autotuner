@@ -65,9 +65,7 @@ export function ExportBar({ project, onExported }: Props) {
 
   return (
     <footer className="export-bar">
-      <span>
-        {changed === 0 ? 'No notes changed yet' : `${changed} of ${project.notes.length} notes changed`}
-      </span>
+      <span>{changed === 0 ? 'No notes changed yet' : `${changed} of ${project.notes.length} notes changed`}</span>
       {error && <span className="error export-error">{error}</span>}
       <div className="export-menu" ref={menuRef}>
         {busy ? (
