@@ -64,6 +64,14 @@ export function resetNotes(notes: NoteSegment[], ids: Set<string>): Edit {
   return notes.filter((n) => ids.has(n.id) && isEdited(n)).map((n) => ({ id: n.id, from: n.midi, to: n.detectedMidi }))
 }
 
+/** Notes that read as off pitch (not green): more than 10 cents from a semitone. */
+export const isOffPitch = (note: NoteSegment) => Math.abs(note.midi - Math.round(note.midi)) * 100 > IN_TUNE_CENTS
+
+/** "Tune Up": moves every off-pitch note to its nearest semitone, as one edit. */
+export function tuneUp(notes: NoteSegment[]): Edit {
+  return notes.filter(isOffPitch).map((n) => ({ id: n.id, from: n.midi, to: Math.round(n.midi) }))
+}
+
 /** Drops no-op changes; returns null when nothing changed. */
 export function effective(edit: Edit): Edit | null {
   const changed = edit.filter((c) => Math.abs(c.to - c.from) > 1e-9)
@@ -89,7 +97,8 @@ export function redo(history: History): [History, Edit | null] {
 // Tuning colours (dark theme): off pitch at 50 cents away, in tune within 10 cents.
 const OFF_PITCH = [224, 86, 155]
 const IN_TUNE = [63, 191, 134]
-const IN_TUNE_CENTS = 10
+/** Within this many cents of a semitone a note counts as in tune (green); further out it's off pitch. */
+export const IN_TUNE_CENTS = 10
 const OFF_PITCH_CENTS = 50
 
 /** 0 = fully off pitch, 1 = in tune. */

@@ -7,6 +7,6 @@ export default defineConfig({
   // The analysis worker imports these lazily; pre-bundling them up front stops Vite from
   // discovering them mid-analysis and reloading the page.
   optimizeDeps: {
-    include: ['@spotify/basic-pitch', '@tensorflow/tfjs', '@tensorflow/tfjs-backend-wasm', 'pitchy'],
+    include: ['@spotify/basic-pitch', '@tensorflow/tfjs', '@tensorflow/tfjs-backend-wasm', 'pitchy', 'signalsmith-stretch'],
   },
 })

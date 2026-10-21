@@ -2,6 +2,116 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-14 (editor additions)
+
+### "Tune Up" button
+
+One click moves every off-pitch note (the pink/red ones, more than 10 cents from a semitone, the same rule as
+the colours) to its nearest semitone, as a single undoable edit. On the test vocal it moved 93 of 139 notes.
+It's the only coloured control:
+
+- a green gradient, with a light running around its border (a conic-gradient border animated through a
+  registered `--tune-up-angle` custom property)
+- the animation turns off under `prefers-reduced-motion`
+- the button greys out when nothing is off pitch
+
+It applies to all notes, not just the selection.
+
+### Zoom: ⌘/Ctrl + →/← and faster scroll zoom
+
+⌘/Ctrl + → zooms in 1.5× and ⌘/Ctrl + ← zooms out, around the middle of the view. The handler prevents the
+browser's ⌘+← "back" shortcut, and arrows with ⌘/Ctrl no longer move the note selection. Scroll/pinch zoom is
+twice as fast (wheel factor 0.002 → 0.004 per delta unit).
+
+## 2026-10-14 (Phase 3 revisions)
+
+### A note plays again from its start whenever it moves to a new pitch
+
+This was flagged as very important.
+
+- **Dragging:** each time the held note lands on a new pitch (half a semitone or more from where it last
+  started), it restarts from its beginning at that pitch, behind a 12 ms fade dip. Fine (Alt) moves under
+  half a semitone just bend the pitch.
+- **Up/Down nudges:** the moved note plays once from its start at the new pitch, then stops. While the song
+  is playing, nudges don't interrupt it; playback already reflects the change.
+
+Measured with `src/dev/audioChecks.ts` (`retriggerCheck`, `nudgeCheck`, `loopCheck`).
+
+### Fixed: the held-note loop never looped
+
+The preview measured the note's length after `addBuffers` had transferred (emptied) the sample arrays, so
+the loop end was 0, which disables looping. A held note played once and then went silent. Length is now
+measured before the transfer. `loopCheck` holds a 1 s note for 2.5 s and confirms it sounds the whole time.
+
+### Dev builds expose the engine as `window.__audioEngine`
+
+This is for the audio checks and console debugging, and is stripped from production builds.
+
+## 2026-10-13 (Phase 3 revisions, from Aidan's review)
+
+### Clicking a note plays it on a loop until release, even during playback
+
+This supersedes "Drag preview only plays the dragged note ... the preview is skipped while playback is
+running". Now a press on a note always starts the looped preview at once. If the song was playing, it pauses
+and resumes from the same spot on release, with any pitch change applied. Moving the note while holding
+changes the looped pitch live. Verified in the app: paused at 0.82 s, resumed from 0.84 s.
+
+### The view follows the playhead only until the user scrolls or zooms
+
+Following is page-by-page: when the playhead leaves the view, the view jumps so it sits at 10% from the
+left. Any wheel scroll or zoom turns following off, and Play or any jump (Enter, arrows, ruler click, skip
+buttons) turns it back on.
+
+### < and > move the playhead between notes; Enter returns to the start
+
+< and > jump the playhead to the previous/next note start; `,` and `.` work too, so Shift isn't needed.
+Rewind has 150 ms of slack, so pressing it at a note's start goes to the note before. ← and → still step
+the selection between notes (Phase 2), and Up/Down still move selected notes.
+
+### Transport: back to start, rewind, play/pause, fast forward
+
+Styled after the reference screenshot (dark segmented buttons, green play icon). Rewind and fast forward do
+the same as < and >. Space and Enter are handled at the window level and their default is prevented, so a
+focused transport button never fires twice.
+
+## 2026-10-13 (Phase 3)
+
+### Signalsmith nodes are pooled and reused, never discarded
+
+Signalsmith's worklet `process()` always returns `true`, so a node is never garbage collected and keeps
+running its STFT even after it is disconnected. Creating nodes per recording would leak a full copy of the
+audio, plus audio-thread CPU, every time a file is opened (twice in React dev mode).
+
+`AudioEngine` takes a playback + preview pair from a per-`AudioContext` pool. On dispose it fades out, drops
+the buffers and returns the pair. Nodes are always created stereo: mono recordings are played on both
+channels by the node itself.
+
+### Drag preview only plays the dragged note
+
+The preview node gets just the note's slice (plus 50 ms pre-roll) on each grab, looped, so it never holds a
+second copy of the whole file. While playback is running, the preview is skipped: playback re-plans its
+schedule on every edit instead, so you hear the change in context.
+
+### Edits during playback re-plan from "now + output latency"
+
+The engine posts a segment at that time with the current shift, using `outputTime` just before it, so
+segments that have already started are kept. The scheduler then restarts from there.
+
+### The scheduler is driven by the worklet's time reports
+
+`setUpdateInterval(20 ms)` runs the scheduler from the audio thread's reports, with a 50 ms timer as backup.
+Timers alone are throttled in background tabs.
+
+### Measured (dev server, Chromium, this MacBook Air)
+
+Re-run with `src/dev/audioChecks.ts`.
+
+| Check | Result |
+| --- | --- |
+| Drag preview latency | engine 21–22 ms (median of 6) + device output 38 ms = **about 59 ms heard** (target about 75 ms) |
+| Playback, synthetic vocal with every other note moved +2 / −3 | 13–17 of 13–17 notes at the target pitch (within 40 cents; the remainder is vibrato in the 46 ms window) |
+| Clicks at note boundaries | click energy at each of 17–20 shift changes 0.7–1.28× the unedited passage (≈1 = nothing added) |
+
 ## 2026-10-13 (Phase 2)
 
 ### Untouched notes keep their sung (fractional) pitch

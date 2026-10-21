@@ -1,11 +1,12 @@
 import type { KonvaEventObject } from 'konva/lib/Node'
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Group, Layer, Rect, Stage } from 'react-konva'
 import type { F0Curve as Curve, NoteSegment, Peaks } from '../types'
 import { type Edit, shiftNotes, shiftOf } from './edits'
 import { F0Curve } from './F0Curve'
 import { NoteBlob } from './NoteBlob'
+import { Playhead } from './Playhead'
 import { Keyboard, PitchGrid } from './PitchGrid'
 import { TimeRuler } from './TimeRuler'
 import {
@@ -33,13 +34,28 @@ interface Props {
   onPreview: (edit: Edit) => void
   /** The whole drag as one undoable step (notes already show its result). */
   onCommit: (edit: Edit) => void
+  /** Playback position and state, for the playhead. */
+  getTime: () => number
+  playing: boolean
+  playheadRevision: number
+  /** Click on the time ruler. */
+  onSeek: (seconds: number) => void
+  /** Drag preview: a note was grabbed, its shift changed, it was released. */
+  onGrab: (note: NoteSegment) => void
+  onGrabShift: (semitones: number) => void
+  onRelease: () => void
 }
+
+/** Ctrl/Cmd + scroll zoom per unit of wheel delta (was 0.002, which felt slow). */
+const WHEEL_ZOOM_SPEED = 0.004
+/** Cmd/Ctrl + arrow zoom per press. */
+const KEY_ZOOM_STEP = 1.5
 
 /** Pointer travel (px) before a press on a note becomes a drag. */
 const DRAG_THRESHOLD = 3
 
 type Gesture =
-  | { kind: 'drag'; startY: number; start: Map<string, number>; active: boolean; edit: Edit }
+  | { kind: 'drag'; startY: number; start: Map<string, number>; active: boolean; edit: Edit; grabbed: NoteSegment }
   | { kind: 'marquee'; x0: number; y0: number; x1: number; y1: number; additive: boolean }
 
 export function PitchEditor({
@@ -52,6 +68,13 @@ export function PitchEditor({
   onSelectionChange,
   onPreview,
   onCommit,
+  getTime,
+  playing,
+  playheadRevision,
+  onSeek,
+  onGrab,
+  onGrabShift,
+  onRelease,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [{ width, height }, setSize] = useState({ width: 0, height: 0 })
@@ -110,16 +133,45 @@ export function PitchEditor({
     }
   }
 
+  // The view chases the playhead until the user scrolls or zooms; playing or jumping turns it back on.
+  const following = useRef(true)
+  useEffect(() => {
+    following.current = true
+  }, [playing, playheadRevision])
+
+  /** Zooms time by `factor`, keeping the time under `anchorX` (px into the grid) where it is. */
+  const zoomBy = (factor: number, anchorX: number) => {
+    following.current = false
+    const anchorTime = (sx + anchorX) / pxPerSec
+    const nextPxPerSec = clamp(pxPerSec * factor, MIN_PX_PER_SEC, MAX_PX_PER_SEC)
+    setZoom(nextPxPerSec)
+    setScrollX(anchorTime * nextPxPerSec - anchorX)
+  }
+
+  // Cmd/Ctrl + Right zooms in, Cmd/Ctrl + Left zooms out, around the middle of the view.
+  const keyZoom = useRef<(factor: number) => void>(() => {})
+  useEffect(() => {
+    keyZoom.current = (factor) => zoomBy(factor, viewWidth / 2)
+  })
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
+      // Also stops the browser's Cmd+Left "back" shortcut.
+      e.preventDefault()
+      keyZoom.current(e.key === 'ArrowRight' ? KEY_ZOOM_STEP : 1 / KEY_ZOOM_STEP)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
+    following.current = false
     const { deltaX, deltaY, ctrlKey, metaKey, shiftKey } = e.evt
 
     if (ctrlKey || metaKey) {
       const pointerX = (e.target.getStage()?.getPointerPosition()?.x ?? KEYBOARD_WIDTH) - KEYBOARD_WIDTH
-      const anchorTime = (sx + Math.max(0, pointerX)) / pxPerSec
-      const nextPxPerSec = clamp(pxPerSec * Math.exp(-deltaY * 0.002), MIN_PX_PER_SEC, MAX_PX_PER_SEC)
-      setZoom(nextPxPerSec)
-      setScrollX(anchorTime * nextPxPerSec - Math.max(0, pointerX))
+      zoomBy(Math.exp(-deltaY * WHEEL_ZOOM_SPEED), Math.max(0, pointerX))
       return
     }
 
@@ -150,6 +202,11 @@ export function PitchEditor({
   const onPointerDown = (e: ReactPointerEvent) => {
     if (e.button !== 0) return
     const { x, y, inGrid } = toContent(e)
+    const rect = containerRef.current!.getBoundingClientRect()
+    if (!inGrid && e.clientX - rect.left >= KEYBOARD_WIDTH && e.clientY - rect.top < RULER_HEIGHT) {
+      onSeek(x / pxPerSec)
+      return
+    }
     if (!inGrid) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
@@ -171,7 +228,8 @@ export function PitchEditor({
       onSelectionChange(next)
     }
     const start = new Map(notes.filter((n) => next.has(n.id)).map((n) => [n.id, n.midi]))
-    setGesture({ kind: 'drag', startY: y, start, active: false, edit: [] })
+    setGesture({ kind: 'drag', startY: y, start, active: false, edit: [], grabbed: hit })
+    onGrab(hit)
   }
 
   const onPointerMove = (e: ReactPointerEvent) => {
@@ -191,12 +249,15 @@ export function PitchEditor({
     const edit = shiftNotes(gesture.start, -dy / ROW_HEIGHT, snap && !e.altKey)
     setGesture({ ...gesture, active: true, edit })
     onPreview(edit)
+    const grabbed = edit.find((c) => c.id === gesture.grabbed.id)
+    if (grabbed) onGrabShift(grabbed.to - gesture.grabbed.detectedMidi)
   }
 
   const onPointerUp = (e: ReactPointerEvent) => {
     if (!gesture) return
     setGesture(null)
     if (gesture.kind === 'drag') {
+      onRelease()
       if (gesture.active) onCommit(gesture.edit)
       // A plain click on a note in a multi-selection selects just that note.
       else if (!(e.shiftKey || e.metaKey || e.ctrlKey) && selection.size > 1) {
@@ -248,7 +309,10 @@ export function PitchEditor({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={() => setGesture(null)}
+      onPointerCancel={() => {
+        if (gesture?.kind === 'drag') onRelease()
+        setGesture(null)
+      }}
       onPointerLeave={() => !gesture && setHovered(null)}
     >
       {width > 0 && height > 0 && (
@@ -284,6 +348,17 @@ export function PitchEditor({
               </Group>
             </Group>
           </Layer>
+          <Playhead
+            getTime={getTime}
+            pxPerSec={pxPerSec}
+            scrollX={sx}
+            viewWidth={viewWidth}
+            height={height}
+            playing={playing}
+            revision={playheadRevision}
+            shouldFollow={() => following.current}
+            onFollow={(t) => setScrollX(clamp(t * pxPerSec - viewWidth * 0.1, 0, maxScrollX))}
+          />
         </Stage>
       )}
     </div>
