@@ -2,6 +2,65 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-10-13 (Phase 2)
+
+### Untouched notes keep their sung (fractional) pitch
+
+`midi` starts equal to `detectedMidi` instead of the rounded `originalMidi`. A note that hasn't been
+touched is never retuned, and the shift is always `midi - detectedMidi`. With snap on, the first drag
+lands the note on a semitone, which also corrects its tuning.
+
+### Two clarity levels for the F0 curve
+
+The real test vocals sat well below the planned 0.85 clarity cutoff: median clarity inside notes was 0.81,
+0.88 and 0.94, and only 31% of note frames were voiced on one vocal. Frames now count:
+
+- at **0.85** anywhere
+- at **0.6** inside a detected note, if they are within a semitone of its pitch
+
+Notes with fewer than 3 supporting frames fell from 103 to 54 (of 171) on that vocal. Lowering the inside
+cutoff below 0.6 barely helped.
+
+### Outlier filter for stray detections
+
+A note is dropped only if it is shorter than 0.2 s, at least 7 semitones from the median of its neighbours
+within 2 s, and less than 50% backed by matching F0 frames. On the test vocals this removes 3 to 7 blips each
+(overtones an octave up, breaths). A supported leap is kept even when it is short.
+
+### Display curve: breaks at jumps over a semitone, hides runs shorter than 70 ms outside notes
+
+The tracker's octave jumps had drawn long vertical lines across the grid.
+
+### Pointer handling moved from Konva `draggable` to DOM pointer events on the editor
+
+This supports multi-note drags, pointer capture (drags that leave the canvas) and the selection box. Hit
+testing is a simple scan over the notes, and every Konva layer is `listening={false}`, so Konva builds no
+hit canvas.
+
+### Keyboard: Left/Right always step to the previous/next note
+
+The plan had this only when nothing is selected. Stepping from the current selection is the more useful
+behaviour, and Escape clears the selection.
+
+### Labels on hover and for selections of 3 or fewer
+
+Labels on every selected note overlapped once a box selection covered more than a few notes. Wide blobs
+still always show their label, as in the scaffold.
+
+### Performance (production build, 3-minute vocal, 522 notes, Chromium)
+
+Cost per update, against a 16.7 ms budget for 60 fps:
+
+| Action | p95 per update |
+| --- | --- |
+| Pan, zoomed in | 13–15 ms |
+| Pan, fully zoomed out (all notes drawn) | 15.6 ms (17.3 ms before caching the blob element list) |
+| Move one note with all 522 on screen | about 1 ms React + 6 ms Konva drawing |
+| Move all 522 notes at once | 27 ms (about 37 fps) |
+
+Konva's full redraw is about 5–6 ms of every update. If whole-song moves need to be smoother, the next step
+is caching blob shapes or splitting static and moving notes across layers.
+
 ## 2026-10-13 (Phase 1)
 
 ### Fragment merging after monophonic cleanup
