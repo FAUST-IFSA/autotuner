@@ -19,6 +19,12 @@ export const midiToY = (midi: number) => (MIDI_MAX - midi) * ROW_HEIGHT
 
 export const yToMidi = (y: number) => clamp(MIDI_MAX - Math.round(y / ROW_HEIGHT), MIDI_MIN, MIDI_MAX)
 
+/** Fractional pitch at a grid content y (row centres are whole semitones). */
+export const pitchAtY = (y: number) => MIDI_MAX + 0.5 - y / ROW_HEIGHT
+
+/** Grid content y of a (fractional) pitch's centre line. */
+export const pitchToY = (midi: number) => midiToY(midi) + ROW_HEIGHT / 2
+
 export const midiName = (midi: number) => `${NOTE_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`
 
 export const isBlackKey = (midi: number) => NOTE_NAMES[midi % 12].includes('#')

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Signalsmith spikes</title>
+    <style>
+      body {
+        font: 14px system-ui;
+        margin: 24px;
+        max-width: 900px;
+      }
+      button {
+        margin: 4px 8px 4px 0;
+      }
+      pre {
+        background: #f3f3f3;
+        padding: 12px;
+        white-space: pre-wrap;
+      }
+      input[type='range'] {
+        width: 360px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Signalsmith Stretch spikes</h1>
+    <h2>1. Live transpose</h2>
+    <button id="live-start">Start looped vocal</button>
+    <button id="live-stop">Stop</button>
+    <label
+      >Semitones <input id="semis" type="range" min="-12" max="12" step="0.01" value="0" />
+      <span id="semis-v">0</span></label
+    >
+    <br />
+    <button id="live-measure">Measure latency (default preset)</button>
+    <button id="live-measure-cheap">Measure latency (cheaper preset)</button>
+    <button id="live-measure-small">Measure latency (blockMs 60)</button>
+    <h2>2. Offline render</h2>
+    <button id="offline-run">Run offline render tests</button>
+    <button id="offline-play">Play last offline render</button>
+    <button id="offline-download">Download last render (WAV)</button>
+    <pre id="log"></pre>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

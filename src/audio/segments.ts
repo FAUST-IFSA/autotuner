@@ -6,7 +6,7 @@ const MIN_LENGTH_SECONDS = 0.12
 
 /**
  * Splits audio into segments wherever it is loud enough to contain a note.
- * Placeholder until pitch detection exists: every segment starts at `defaultMidi`.
+ * Fallback when Basic Pitch fails: every segment starts at `defaultMidi` until its pitch is read from the F0 curve.
  */
 export function detectSegments(samples: Float32Array, sampleRate: number, defaultMidi = 60): NoteSegment[] {
   const frameCount = Math.floor(samples.length / FRAME_SIZE)
@@ -46,5 +46,6 @@ export function detectSegments(samples: Float32Array, sampleRate: number, defaul
       end: to * frameSeconds,
       originalMidi: defaultMidi,
       midi: defaultMidi,
+      detectedMidi: defaultMidi,
     }))
 }
