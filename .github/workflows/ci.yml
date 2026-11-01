@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  # No branch filter: stacked PRs target other feature branches, not main.
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # postinstall copies the Basic Pitch model and tfjs WASM binaries into public/.
+      - name: Install
+        run: npm ci
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      # tsc -b, vite build, then scripts/check-chunks.mjs (fails if lamejs leaves its worker chunk).
+      - name: Build
+        run: npm run build
+
+      # pretest generates the synthetic fixture. The gitignored Looperman files are absent in CI.
+      - name: Test
+        run: npm test
+
+      - name: License check
+        run: npm run licenses:check
