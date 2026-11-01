@@ -1,6 +1,9 @@
 import SignalsmithStretch, { type StretchNode } from 'signalsmith-stretch'
 import type { NoteSegment } from '../types'
+import { copyChannels } from './channels'
+import { shiftOf } from './music'
 import { ShiftScheduler, type ShiftChange, type TimedChange, buildSchedule, shiftAt } from './schedule'
+import { VOICE, outputLatencyOf } from './stretch'
 
 /** Drag preview block size: ~21 ms node latency instead of ~58 ms (Phase 0, spike 1). */
 const PREVIEW_BLOCK_MS = 40
@@ -13,9 +16,6 @@ const TICK_SECONDS = 0.02
 
 /** What a playback listener hears about: playback starting or stopping (paused, or at the end), or a seek. */
 export type PlaybackEvent = 'play' | 'pause' | 'end' | 'seek'
-
-/** Formant compensation keeps a shifted voice from sounding chipmunk-like or muffled. */
-export const VOICE = { formantCompensation: true, formantBaseHz: 0 } as const
 
 /** A playback node and a preview node, each behind its own fade gain. */
 interface Voices {
@@ -45,9 +45,8 @@ async function acquireVoices(ctx: AudioContext): Promise<Voices> {
   const previewGain = new GainNode(ctx, { gain: 0 })
   player.connect(playerGain).connect(ctx.destination)
   previewer.connect(previewGain).connect(ctx.destination)
-  // latency() is input + output latency; output latency is half (Phase 0, spike 2).
-  const outputLatency = (await player.latency()) / 2
-  const previewOutputLatency = (await previewer.latency()) / 2
+  const outputLatency = await outputLatencyOf(player)
+  const previewOutputLatency = await outputLatencyOf(previewer)
   return { player, playerGain, previewer, previewGain, outputLatency, previewOutputLatency }
 }
 
@@ -61,12 +60,6 @@ function releaseVoices(ctx: AudioContext, voices: Voices) {
     void voices.previewer.dropBuffers()
     pool.push(voices)
   }, 100)
-}
-
-function copyChannels(buffer: AudioBuffer, from = 0, to = buffer.duration): Float32Array[] {
-  const a = Math.max(0, Math.floor(from * buffer.sampleRate))
-  const b = Math.min(buffer.length, Math.ceil(to * buffer.sampleRate))
-  return Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c).slice(a, b))
 }
 
 /**
@@ -130,6 +123,11 @@ export class AudioEngine {
   }
 
   static async create(ctx: AudioContext, buffer: AudioBuffer): Promise<AudioEngine> {
+    // Signalsmith plays raw sample arrays at the context's rate, so the buffer must already be at it.
+    // decodeAudioFile guarantees that by decoding through this same context.
+    if (buffer.sampleRate !== ctx.sampleRate) {
+      throw new Error(`Audio is at ${buffer.sampleRate} Hz but playback runs at ${ctx.sampleRate} Hz`)
+    }
     const voices = await acquireVoices(ctx)
     const channels = copyChannels(buffer)
     await voices.player.addBuffers(
@@ -183,6 +181,8 @@ export class AudioEngine {
     if (this.disposed) return
     this.resumeAfterPreview = false
     await this.ctx.resume()
+    // Disposed while the context was resuming.
+    if (this.disposed) return
     if (this.playing) this.halt()
     this.from = from >= this.buffer.duration - 0.05 ? 0 : from
     // Schedule ahead by the node's output latency so it starts exactly at `from`.
@@ -267,7 +267,7 @@ export class AudioEngine {
    */
   async playNote(note: NoteSegment) {
     if (this.disposed || this.playing || this.previewing) return
-    this.previewSemitones = note.midi - note.detectedMidi
+    this.previewSemitones = shiftOf(note)
     await this.loadPreview(note, false)
   }
 
@@ -276,7 +276,7 @@ export class AudioEngine {
     const token = ++this.previewToken
     window.clearTimeout(this.previewEndTimer)
     this.previewLoaded = false
-    this.previewSemitones = note.midi - note.detectedMidi
+    this.previewSemitones = shiftOf(note)
     await this.ctx.resume()
     const from = Math.max(0, note.start - PREVIEW_PRE_ROLL)
     const slice = copyChannels(this.buffer, from, note.end)
@@ -345,6 +345,11 @@ export class AudioEngine {
     this.resumeAfterPreview = false
     this.halt()
     this.stopPreview()
+    // Also cancel a one-shot note (playNote isn't a held preview): a load still in flight, or its end timer,
+    // would otherwise touch the pooled nodes after they belong to the next engine.
+    this.previewToken++
+    window.clearTimeout(this.previewEndTimer)
+    this.fadeOutPreview(this.ctx.currentTime)
     if (this.voices) releaseVoices(this.ctx, this.voices)
   }
 

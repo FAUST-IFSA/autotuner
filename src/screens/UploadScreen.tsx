@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { loadAudioFile } from '../audio/decode'
+import { loadAudioFile } from '../audio/loadAudioFile'
 import { RecentFiles } from '../components/RecentFiles'
 import { openRecent, saveRecent } from '../storage/recent'
 import type { Project } from '../types'
@@ -23,7 +23,8 @@ export function UploadScreen({ onLoaded }: Props) {
       setProgress(0)
       try {
         const project = await loadAudioFile(file, setProgress)
-        void saveRecent(project)
+        // Approximate notes aren't kept: reopening never re-analyses, so they'd outlive a working model.
+        if (!project.approximateNotes) void saveRecent(project)
         onLoaded(project)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Something went wrong loading that file.')

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { type ExportFormat, type ExportStatus, exportTuned, saveFile } from '../audio/exportFile'
-import { isEdited } from '../editor/edits'
+import { isEdited } from '../audio/music'
 import type { Project } from '../types'
 
 interface Props {
@@ -21,6 +21,14 @@ export function ExportBar({ project, onExported }: Props) {
   const [busy, setBusy] = useState<{ format: ExportFormat; status: ExportStatus | null } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  // An export can finish after the editor has closed ("← New file"); only an open editor shows "Saved".
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   // Close the menu on outside click or Escape.
   useEffect(() => {
@@ -48,8 +56,9 @@ export function ExportBar({ project, onExported }: Props) {
     setBusy({ format, status: null })
     try {
       const { blob, fileName } = await exportTuned(project, format, (status) => setBusy({ format, status }))
+      // The user asked for this file, so it still downloads.
       saveFile(blob, fileName)
-      onExported(fileName)
+      if (mounted.current) onExported(fileName)
     } catch (err) {
       console.error(err)
       const reason = err instanceof Error ? err.message : String(err)

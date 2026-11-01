@@ -126,6 +126,11 @@ button:hover {
   color: #7d8590;
 }
 
+.notice {
+  color: #e3b341;
+  font-size: 13px;
+}
+
 .editor-tools {
   display: flex;
   align-items: center;

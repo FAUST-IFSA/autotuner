@@ -1,6 +1,13 @@
+import type { NoteSegment } from '../types'
+
 export const hzToMidi = (hz: number) => 69 + 12 * Math.log2(hz / 440)
 
 export const midiToHz = (midi: number) => 440 * 2 ** ((midi - 69) / 12)
+
+/** A note's pitch change from how it was sung, in semitones (0 = untouched). Playback, export and the editor all use it. */
+export const shiftOf = (note: NoteSegment) => note.midi - note.detectedMidi
+
+export const isEdited = (note: NoteSegment) => Math.abs(shiftOf(note)) > 1e-6
 
 /** Signed cents from the nearest semitone, in [-50, 50]. */
 export const centsOff = (midi: number) => (midi - Math.round(midi)) * 100

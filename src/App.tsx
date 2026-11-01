@@ -21,6 +21,14 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [project])
 
+  // Closing the project: save its latest edits now (the debounced save above would be cancelled) and drop
+  // any Downloaded screen with it.
+  const closeProject = () => {
+    if (project) void saveRecentNotes(project)
+    setSavedFile(null)
+    setProject(null)
+  }
+
   if (!project) return <UploadScreen onLoaded={setProject} />
   return (
     <>
@@ -28,19 +36,12 @@ export default function App() {
       <EditorScreen
         project={project}
         onNotesChange={setNotes}
-        onReset={() => setProject(null)}
+        onReset={closeProject}
         onExported={setSavedFile}
         suspended={savedFile !== null}
       />
       {savedFile && (
-        <DownloadedScreen
-          fileName={savedFile}
-          onBack={() => setSavedFile(null)}
-          onNewVocal={() => {
-            setSavedFile(null)
-            setProject(null)
-          }}
-        />
+        <DownloadedScreen fileName={savedFile} onBack={() => setSavedFile(null)} onNewVocal={closeProject} />
       )}
     </>
   )

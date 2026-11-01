@@ -1,4 +1,5 @@
 import type { NoteSegment } from '../types'
+import { shiftOf } from './music'
 
 /** From time `t` (seconds in the original audio) on, transpose by `semitones`. */
 export interface ShiftChange {
@@ -33,14 +34,14 @@ export function buildSchedule(notes: NoteSegment[]): ShiftChange[] {
   }
 
   notes.forEach((note, i) => {
-    const shift = note.midi - note.detectedMidi
+    const shift = shiftOf(note)
     const prev = notes[i - 1]
     const next = notes[i + 1]
     // Pad into the gaps, but never past the middle of a gap.
     const start = Math.max(prev ? (prev.end + note.start) / 2 : 0, note.start - EDGE_PAD_SECONDS)
     const end = next ? Math.min((note.end + next.start) / 2, note.end + EDGE_PAD_SECONDS) : note.end + EDGE_PAD_SECONDS
     push(start, Math.abs(shift) < 1e-9 ? 0 : shift)
-    const nextShift = next ? next.midi - next.detectedMidi : 0
+    const nextShift = next ? shiftOf(next) : 0
     // Return to 0 after the note unless the next note follows right away (it sets its own shift).
     if (!next || next.start - note.end >= MIN_GAP_SECONDS || Math.abs(nextShift) < 1e-9) push(end, 0)
   })
