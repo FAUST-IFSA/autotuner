@@ -7,6 +7,7 @@ import {
   f0Median,
   f0Support,
   medianFilterVoicedRuns,
+  voicedRuns,
 } from './f0'
 import { midiToHz } from './music'
 
@@ -86,5 +87,17 @@ describe('weak frames inside notes', () => {
 describe('dropShortRuns', () => {
   it('hides voiced runs shorter than the minimum', () => {
     expect(dropShortRuns([60, null, 61, 61, 61, null, 62], 2)).toEqual([null, null, 61, 61, 61, null, null])
+  })
+})
+
+describe('voicedRuns', () => {
+  it('turns runs of voiced frames into time spans, half a hop either side of the frame centres', () => {
+    const f0 = { hopSec: 0.01, midi: [null, 60, 61, null, null, 62], clarity: [0, 1, 1, 0, 0, 1] }
+    const runs = voicedRuns(f0)
+    expect(runs).toHaveLength(2)
+    expect(runs[0].start).toBeCloseTo(0.005)
+    expect(runs[0].end).toBeCloseTo(0.025)
+    expect(runs[1].start).toBeCloseTo(0.045)
+    expect(runs[1].end).toBeCloseTo(0.055)
   })
 })

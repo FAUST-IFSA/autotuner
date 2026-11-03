@@ -1,20 +1,20 @@
 import { useCallback, useEffect } from 'react'
 import type { AudioEngine } from '../audio/AudioEngine'
-import type { NoteSegment } from '../types'
+import type { NoteSegment, TimeSpan } from '../types'
 
 /**
  * The editor's side of the audio engine: keeps it playing the current notes (and quiet while the editor
  * is covered), and turns transport buttons, shortcuts and note grabs into engine calls. Every action
  * does nothing while there is no engine.
  */
-export function usePlayback(engine: AudioEngine | null, notes: NoteSegment[], suspended: boolean) {
+export function usePlayback(engine: AudioEngine | null, notes: NoteSegment[], voiced: TimeSpan[], suspended: boolean) {
   // Covered by the Downloaded screen: stop the sound.
   useEffect(() => {
     if (suspended) engine?.pause()
   }, [suspended, engine])
 
   // Playback follows edits as they happen, including mid-drag.
-  useEffect(() => engine?.setNotes(notes), [engine, notes])
+  useEffect(() => engine?.setNotes(notes, voiced), [engine, notes, voiced])
 
   const togglePlay = useCallback(() => {
     if (!engine) return

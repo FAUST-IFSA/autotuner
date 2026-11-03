@@ -8,7 +8,7 @@ import config from '../../sweep/sweep.config'
 import { copyChannels } from '../audio/channels'
 import { decodeAudioFile } from '../audio/decode'
 import { renderTuned } from '../audio/export'
-import { ANALYSIS_SAMPLE_RATE, NOTE_CLARITY, computeF0 } from '../audio/f0'
+import { ANALYSIS_SAMPLE_RATE, NOTE_CLARITY, computeF0, voicedRuns } from '../audio/f0'
 import { resampleForAnalysis } from '../audio/loadAudioFile'
 import { isEdited } from '../audio/music'
 import { decodeBasicPitch, evaluateBasicPitch, notesFromRaw, type Posteriors } from '../audio/notes'
@@ -70,8 +70,8 @@ function applyEdit(notes: NoteSegment[], edit: SweepEdit): NoteSegment[] {
 }
 
 /** Share of the voiced audio in the edited range that the schedule leaves at its original pitch. */
-function unshiftedShare(f0: F0Curve, notes: NoteSegment[], edit: SweepEdit) {
-  const schedule = buildSchedule(notes, baseParams)
+function unshiftedShare(f0: F0Curve, notes: NoteSegment[], edit: SweepEdit, params: TuningParams) {
+  const schedule = buildSchedule(notes, voicedRuns(f0), params)
   const [from, to] = edit.range ?? [0, Infinity]
   let voiced = 0
   let unshifted = 0
@@ -150,12 +150,12 @@ async function runFile(name: string, blob: Blob) {
       const params = { ...baseParams, [param]: value }
       const notes = applyEdit(notesFromRaw(decodeBasicPitch(posteriors, params), f0, params), config.edit)
       const started = performance.now()
-      const rendered = await renderTuned(buffer, notes, undefined, params)
+      const rendered = await renderTuned(buffer, notes, voicedRuns(f0), undefined, params)
       const seconds = ((performance.now() - started) / 1000).toFixed(1)
       const meta = [
         `${notes.length} notes, ${notes.filter(isEdited).length} edited`,
         'shift' in config.edit
-          ? `${Math.round(unshiftedShare(f0, notes, config.edit) * 100)}% of voiced audio unshifted`
+          ? `${Math.round(unshiftedShare(f0, notes, config.edit, params) * 100)}% of voiced audio unshifted`
           : '',
         `rendered in ${seconds} s`,
       ]

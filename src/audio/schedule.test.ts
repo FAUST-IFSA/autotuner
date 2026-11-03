@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteSegment } from '../types'
+import { DEFAULT_PARAMS } from './params'
 import {
   BRIDGE_MAX_GAP_SECONDS,
   EDGE_PAD_SECONDS,
@@ -8,6 +9,8 @@ import {
   buildSchedule,
   shiftAt,
 } from './schedule'
+
+const VOICED_FILL = DEFAULT_PARAMS.voicedFillMaxSeconds
 
 const note = (start: number, end: number, detectedMidi: number, midi = detectedMidi): NoteSegment => ({
   id: `${start}`,
@@ -89,6 +92,55 @@ describe('buildSchedule', () => {
     expect(shiftAt(schedule, 0.2)).toBe(0)
     expect(shiftAt(schedule, 0.7)).toBe(2)
     expect(shiftAt(schedule, 1.2)).toBe(0)
+  })
+})
+
+describe('buildSchedule with voiced audio between notes', () => {
+  const span = (start: number, end: number) => ({ start, end })
+
+  it('gives voiced audio in a long gap the shift of the nearer note', () => {
+    const notes = [note(0.5, 1, 60, 63), note(3, 3.5, 60)]
+    const schedule = buildSchedule(notes, [span(1.5, 1.7), span(2.5, 2.8)])
+    expect(shiftAt(schedule, 1.6)).toBe(3)
+    // Nearer the unedited note: stays as it was.
+    expect(shiftAt(schedule, 2.6)).toBe(0)
+    // Silence between them returns to 0.
+    expect(shiftAt(schedule, 1.9)).toBe(0)
+  })
+
+  it('splits a voiced run that crosses the middle of the gap between two edited notes', () => {
+    const schedule = buildSchedule([note(0.5, 1, 60, 63), note(3, 3.5, 60, 58)], [span(1.5, 2.5)])
+    expect(shiftAt(schedule, 1.9)).toBe(3)
+    expect(shiftAt(schedule, 2.1)).toBe(-2)
+  })
+
+  it('joins voiced audio close to a note onto the note, with no dip to 0', () => {
+    const schedule = buildSchedule([note(0.5, 1, 60, 63), note(3, 3.5, 60)], [span(1.2, 1.4)])
+    expect(schedule.map((c) => c.semitones)).toEqual([0, 3, 0])
+    expect(schedule[2].t).toBeCloseTo(1.41)
+  })
+
+  it('covers voiced audio before the first and after the last note', () => {
+    const schedule = buildSchedule([note(1, 1.5, 60, 62)], [span(0.2, 0.5), span(1.9, 2.1)])
+    expect(shiftAt(schedule, 0.3)).toBe(2)
+    expect(shiftAt(schedule, 2)).toBe(2)
+  })
+
+  it('leaves voiced audio further than the limit from any note', () => {
+    const notes = [note(0.5, 1, 60, 63)]
+    const near = buildSchedule(notes, [span(1 + VOICED_FILL - 0.05, 1 + VOICED_FILL + 0.1)])
+    const far = buildSchedule(notes, [span(1 + VOICED_FILL + 0.05, 1 + VOICED_FILL + 0.1)])
+    expect(shiftAt(near, 1 + VOICED_FILL)).toBe(3)
+    expect(shiftAt(far, 1 + VOICED_FILL + 0.07)).toBe(0)
+  })
+
+  it("doesn't change short gaps, which are already bridged", () => {
+    const notes = [note(0.5, 1, 60, 63), note(1.2, 2, 60)]
+    expect(buildSchedule(notes, [span(1.02, 1.18)])).toEqual(buildSchedule(notes))
+  })
+
+  it('has no changes when nothing is edited', () => {
+    expect(buildSchedule([note(0.5, 1, 60), note(3, 3.5, 62)], [span(1.5, 2.5)])).toEqual([{ t: 0, semitones: 0 }])
   })
 })
 

@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react'
 import { Group, Layer, Rect, Stage } from 'react-konva'
 import type { AudioEngine } from '../audio/AudioEngine'
-import type { F0Curve as Curve, NoteSegment, Peaks } from '../types'
-import { shiftOf } from '../audio/music'
+import { buildSchedule } from '../audio/schedule'
+import type { F0Curve as Curve, NoteSegment, Peaks, TimeSpan } from '../types'
 import type { Edit } from './edits'
 import { F0Curve } from './F0Curve'
 import { KEYBOARD_WIDTH, RULER_HEIGHT } from './layout'
@@ -21,6 +21,8 @@ interface Props {
   peaks: Peaks
   notes: NoteSegment[]
   f0: Curve
+  /** Voiced audio between notes, which edited notes' shifts carry through. */
+  voiced: TimeSpan[]
   duration: number
   selection: Set<string>
   snap: boolean
@@ -42,13 +44,14 @@ interface Props {
   shortcutsEnabled: boolean
 }
 
-/** Semitone shift per F0 frame, so the curve moves with edited notes. */
-function frameShifts(notes: NoteSegment[], f0: Curve) {
+/** Semitone shift per F0 frame, from the playback schedule, so the curve moves exactly as the audio does. */
+function frameShifts(notes: NoteSegment[], voiced: TimeSpan[], f0: Curve) {
+  const schedule = buildSchedule(notes, voiced)
   const out = new Float32Array(f0.midi.length)
-  for (const n of notes) {
-    const shift = shiftOf(n)
-    if (shift === 0) continue
-    out.fill(shift, Math.max(0, Math.ceil(n.start / f0.hopSec)), Math.floor(n.end / f0.hopSec) + 1)
+  let k = 0
+  for (let i = 0; i < out.length; i++) {
+    while (k + 1 < schedule.length && schedule[k + 1].t <= i * f0.hopSec) k++
+    out[i] = schedule[k].semitones
   }
   return out
 }
@@ -57,6 +60,7 @@ export function PitchEditor({
   peaks,
   notes,
   f0,
+  voiced,
   duration,
   selection,
   snap,
@@ -102,7 +106,7 @@ export function PitchEditor({
     onRelease,
   })
 
-  const shifts = useMemo(() => frameShifts(notes, f0), [notes, f0])
+  const shifts = useMemo(() => frameShifts(notes, voiced, f0), [notes, voiced, f0])
 
   // The same element list across scroll-only renders, so React skips all the blobs while panning.
   const blobs = useMemo(

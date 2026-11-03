@@ -1,5 +1,5 @@
 import { PitchDetector } from 'pitchy'
-import type { F0Curve } from '../types'
+import type { F0Curve, TimeSpan } from '../types'
 import { hzToMidi, median } from './music'
 
 /** Basic Pitch requires exactly this rate, so all analysis runs at it. */
@@ -54,6 +54,23 @@ export function computeF0(samples: Float32Array, sampleRate = ANALYSIS_SAMPLE_RA
   for (let i = 0; i < frameCount; i++) if (rms[i] < silence) raw[i] = null
 
   return { hopSec: HOP / sampleRate, midi: medianFilterVoicedRuns(raw, MEDIAN_SIZE), clarity }
+}
+
+/** The voiced runs of a curve as time spans; each frame covers half a hop either side of its centre. */
+export function voicedRuns(f0: F0Curve): TimeSpan[] {
+  const runs: TimeSpan[] = []
+  let i = 0
+  while (i < f0.midi.length) {
+    if (f0.midi[i] === null) {
+      i++
+      continue
+    }
+    let end = i
+    while (end < f0.midi.length && f0.midi[end] !== null) end++
+    runs.push({ start: Math.max(0, (i - 0.5) * f0.hopSec), end: (end - 0.5) * f0.hopSec })
+    i = end
+  }
+  return runs
 }
 
 /** Voiced runs shorter than this (about 70 ms) are hidden outside notes. */

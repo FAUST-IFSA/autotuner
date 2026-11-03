@@ -37,7 +37,12 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
   const [snap, setSnap] = useState(true)
   const { preview, commit, apply, step, canUndo, canRedo } = useEditHistory(onNotesChange, setSelection)
   const { engine, playing, error: audioError } = useAudioEngine(project.buffer)
-  const { togglePlay, seek, skip, toStart, grab, grabShift, release, playNote } = usePlayback(engine, notes, suspended)
+  const { togglePlay, seek, skip, toStart, grab, grabShift, release, playNote } = usePlayback(
+    engine,
+    notes,
+    project.voiced,
+    suspended,
+  )
   useEditorShortcuts({
     enabled: !suspended,
     notes,
@@ -114,6 +119,7 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
         peaks={project.peaks}
         notes={notes}
         f0={project.f0}
+        voiced={project.voiced}
         duration={project.buffer.duration}
         selection={selection}
         snap={snap}
