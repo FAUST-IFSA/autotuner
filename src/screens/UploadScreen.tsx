@@ -5,7 +5,9 @@ import { RecentFiles } from '../components/RecentFiles'
 import { openRecent, saveRecent } from '../storage/recent'
 import type { Project } from '../types'
 
-const MAX_FILE_BYTES = 100 * 1024 * 1024
+// Fits 10 minutes of 96 kHz / 24-bit stereo WAV (346 MB). Memory follows duration, not file size, so the
+// 10-minute limit in loadAudioFile is the real guard; this only stops a huge file being read in at all.
+const MAX_FILE_BYTES = 400 * 1024 * 1024
 
 interface Props {
   onLoaded: (project: Project) => void
@@ -48,7 +50,7 @@ export function UploadScreen({ onLoaded }: Props) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDropAccepted,
-    onDropRejected: () => setError('Please drop a single audio file under 100 MB.'),
+    onDropRejected: () => setError(`Please drop a single audio file under ${MAX_FILE_BYTES / 1024 / 1024} MB.`),
     accept: { 'audio/*': [] },
     maxFiles: 1,
     maxSize: MAX_FILE_BYTES,

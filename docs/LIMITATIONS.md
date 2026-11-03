@@ -28,7 +28,7 @@ lives in the code. Reasoning and measurements are in [`DECISIONS.md`](DECISIONS.
 
 | Limitation | Effect | Where |
 | --- | --- | --- |
-| **Uploads are one file, up to 100 MB.** | Larger files and batches are rejected. Whole files are decoded in memory. | `UploadScreen.tsx` (`MAX_FILE_BYTES`) |
+| **Uploads are one file, up to 400 MB.** | Larger files and batches are rejected. Whole files are decoded in memory. | `UploadScreen.tsx` (`MAX_FILE_BYTES`) |
 | **Undo history holds 100 edits.** | Older edits can't be undone. | `editor/edits.ts` (`MAX_HISTORY`) |
 | **Only the 10 most recent files are kept**, in this browser's IndexedDB. Approximate (fallback) projects aren't saved, and storage errors are only logged. | Clearing site data loses the list. A failed save is silent. | `storage/recent.ts` |
 | **Zoom is limited to 5 to 2,000 px per second.** | Very long files can't be fully zoomed out to fit. | `editor/layout.ts` |

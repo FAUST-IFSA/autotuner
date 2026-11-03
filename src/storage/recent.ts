@@ -19,7 +19,7 @@ export interface RecentSummary {
 
 /**
  * Everything needed to reopen a project without uploading or analysing again. Written once; edits live
- * under their own key so saving an edit never rewrites the (possibly 100 MB) original file.
+ * under their own key so saving an edit never rewrites the (possibly 400 MB) original file.
  */
 interface StoredProject {
   id: string
