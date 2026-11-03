@@ -20,7 +20,7 @@ For what was fixed and why, see [`DECISIONS.md`](DECISIONS.md). This file only t
 | 3   | Pooled playback and preview nodes keep state between files    | #6           | Open (hardening); pooling is deliberate |
 | 4   | Analysis runs on a 22,050 Hz mono copy                        | #4           | Open (undocumented)              |
 | 5   | Export has to work around one-change-at-a-time scheduling     | #7           | Open question                    |
-| 6   | Limitations are documented only in scattered code comments    | #7           | Open                             |
+| 6   | Limitations are documented only in scattered code comments    | #7           | Done (`LIMITATIONS.md`)          |
 | 7   | MP3 export and LGPL compliance                                | #7, #9       | Decision                         |
 | 8   | Clarity and outlier thresholds come from three test vocals    | #5           | Open                             |
 | 9   | Spike code has a wrong script reference                       | #3           | Done                             |
@@ -120,9 +120,10 @@ headers aren't read", the rest-splitting gap, the mono and 22,050 Hz analysis, a
 live in code comments and individual `DECISIONS.md` entries. The review asked for them to be documented
 consistently in one place.
 
-**Status: Open.** Raised in #7:
-[exportFile.ts:46](https://github.com/FAUST-IFSA/autotuner/pull/7#discussion_r4436024772). Items 1 to 5 here are
-a starting list.
+**Status: Done.** The list now lives in [`LIMITATIONS.md`](LIMITATIONS.md), grouped by detection, export and
+engine, each with its code location. Raised in #7:
+[exportFile.ts:46](https://github.com/FAUST-IFSA/autotuner/pull/7#discussion_r4436024772). Items 1 to 5 here were
+the starting list.
 
 ## Decisions and open questions
 
