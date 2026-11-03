@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Autotuner: parameter sweep</title>
+    <style>
+      body {
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+        margin: 24px auto;
+        max-width: 880px;
+        padding: 0 16px;
+        color: #222;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 28px 0 4px;
+      }
+      code {
+        background: #eee;
+        padding: 1px 4px;
+        border-radius: 3px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 4px 12px;
+        align-items: center;
+        padding: 8px 0;
+        border-top: 1px solid #ddd;
+      }
+      .row audio {
+        width: 100%;
+      }
+      .meta {
+        grid-column: 2;
+        color: #666;
+        font-size: 12px;
+      }
+      .default {
+        font-weight: 600;
+      }
+      .err {
+        color: #b00020;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Parameter sweep</h1>
+    <p id="summary"></p>
+    <p>Also try a file from elsewhere: <input id="picker" type="file" accept="audio/*" multiple /></p>
+    <div id="out"></div>
+    <script type="module" src="/src/dev/sweep.ts"></script>
+  </body>
+</html>
