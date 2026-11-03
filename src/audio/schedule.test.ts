@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteSegment } from '../types'
-import { ShiftScheduler, type TimedChange, buildSchedule, shiftAt } from './schedule'
+import {
+  BRIDGE_MAX_GAP_SECONDS,
+  EDGE_PAD_SECONDS,
+  ShiftScheduler,
+  type TimedChange,
+  buildSchedule,
+  shiftAt,
+} from './schedule'
 
 const note = (start: number, end: number, detectedMidi: number, midi = detectedMidi): NoteSegment => ({
   id: `${start}`,
@@ -34,6 +41,47 @@ describe('buildSchedule', () => {
   it('never pads past the middle of a gap', () => {
     const schedule = buildSchedule([note(0.5, 1, 60, 61), note(1.012, 1.5, 60)])
     expect(schedule[2].t).toBeCloseTo(1.006)
+  })
+
+  it('carries an edited note to the middle of a short gap before an unedited note', () => {
+    const schedule = buildSchedule([note(0.5, 1, 60, 62), note(1.2, 2, 60)])
+    expect(schedule).toHaveLength(3)
+    expect(schedule[2].t).toBeCloseTo(1.1)
+    expect(schedule[2].semitones).toBe(0)
+  })
+
+  it('carries an edited note back to the middle of a short gap after an unedited note', () => {
+    const schedule = buildSchedule([note(0.5, 1, 60), note(1.2, 2, 60, 62)])
+    expect(schedule.map((c) => c.semitones)).toEqual([0, 2, 0])
+    expect(schedule[1].t).toBeCloseTo(1.1)
+  })
+
+  it('switches directly between two edited notes at the middle of a short gap, without dipping to 0', () => {
+    const schedule = buildSchedule([note(0.5, 1, 60, 62), note(1.2, 2, 60, 59)])
+    expect(schedule.map((c) => c.semitones)).toEqual([0, 2, -1, 0])
+    expect(schedule[2].t).toBeCloseTo(1.1)
+  })
+
+  it('stays on one shift across a short gap between notes with the same shift', () => {
+    const schedule = buildSchedule([note(0.5, 1, 60, 62), note(1.2, 2, 61, 63)])
+    expect(schedule.map((c) => c.semitones)).toEqual([0, 2, 0])
+    expect(shiftAt(schedule, 1.1)).toBe(2)
+  })
+
+  it('bridges a gap just under the limit but not one just over it', () => {
+    const at = (gap: number) => buildSchedule([note(0.5, 1, 60, 62), note(1 + gap, 2, 60, 62)])
+    expect(at(BRIDGE_MAX_GAP_SECONDS - 0.01).map((c) => c.semitones)).toEqual([0, 2, 0])
+    // Over the limit: pad 10 ms, return to 0, and come back 10 ms before the next note.
+    const long = at(BRIDGE_MAX_GAP_SECONDS + 0.01)
+    expect(long.map((c) => c.semitones)).toEqual([0, 2, 0, 2, 0])
+    expect(long[2].t).toBeCloseTo(1 + EDGE_PAD_SECONDS)
+    expect(long[3].t).toBeCloseTo(1.31 - EDGE_PAD_SECONDS)
+  })
+
+  it('still pads only 10 ms at the ends of the file', () => {
+    const schedule = buildSchedule([note(0.5, 1, 60, 62)])
+    expect(schedule[1].t).toBeCloseTo(0.49)
+    expect(schedule[2].t).toBeCloseTo(1.01)
   })
 
   it('looks up the shift at a time', () => {

@@ -2,6 +2,18 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-11-01 (shifts bridge short gaps)
+
+On a talking vocal, shifting a whole section left audible remnants of the original voice. `buildSchedule`
+shifted only each note's detected span plus 10 ms, and returned to 0 in every gap of 30 ms or more, so
+transitions, consonants and breaths between words that Basic Pitch didn't turn into notes played at the original
+pitch. Now a gap of up to 300 ms (`BRIDGE_MAX_GAP_SECONDS`) is split at its middle: an edited note's shift
+reaches that point, and two edited neighbours switch directly from one shift to the other there. Longer gaps
+(phrase breaks) keep the 10 ms pad and the return to 0, as do the start and end of the file.
+
+The 300 ms limit is a first guess, not tuned by ear. Audio that was never detected as a note at all (long
+unvoiced stretches inside a phrase) is still unshifted; that needs the F0 curve, or a range-level shift.
+
 ## 2026-10-21 (architecture review)
 
 A lean review covered module boundaries, folder structure and resource lifecycles: three reviewers, one
