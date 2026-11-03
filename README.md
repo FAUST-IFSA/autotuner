@@ -20,4 +20,4 @@ pitch curve. Audio never leaves the browser.
 Playback and drag preview use Signalsmith Stretch (WASM in an AudioWorklet). Audio acceptance checks:
 see `src/dev/audioChecks.ts` (run from the browser console on the dev server).
 
-Build plan: `PLAN.md`. Decisions and deviations: `docs/DECISIONS.md`. License register: `docs/licenses/`.
+Build plan: `PLAN.md`. Decisions and deviations: `docs/DECISIONS.md`. Known limitations: `docs/LIMITATIONS.md`. License register: `docs/licenses/`.
