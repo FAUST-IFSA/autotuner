@@ -15,7 +15,7 @@ function mixToMono(buffer: AudioBuffer): Float32Array {
 }
 
 /** Mono at 22,050 Hz for pitch analysis. The OfflineAudioContext handles downmix and resampling. */
-async function resampleForAnalysis(buffer: AudioBuffer): Promise<Float32Array> {
+export async function resampleForAnalysis(buffer: AudioBuffer): Promise<Float32Array> {
   const length = Math.ceil(buffer.duration * ANALYSIS_SAMPLE_RATE)
   const ctx = new OfflineAudioContext(1, length, ANALYSIS_SAMPLE_RATE)
   const source = ctx.createBufferSource()

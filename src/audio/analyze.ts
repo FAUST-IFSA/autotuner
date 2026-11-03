@@ -1,7 +1,8 @@
 import type { GraphModel } from '@tensorflow/tfjs'
 import type { F0Curve, NoteSegment } from '../types'
 import { ANALYSIS_SAMPLE_RATE, computeF0, curveForDisplay } from './f0'
-import { dropOutliers, mergeFragments, numberNotes, runBasicPitch, toMonophonic, toSegments } from './notes'
+import { notesFromRaw, numberNotes, runBasicPitch, toSegments } from './notes'
+import { DEFAULT_PARAMS, type TuningParams } from './params'
 import { detectSegments } from './segments'
 
 export interface PitchAnalysis {
@@ -19,6 +20,7 @@ export async function analyzePitch(
   samples: Float32Array,
   loadModel: () => Promise<GraphModel>,
   onProgress: (fraction: number) => void = () => {},
+  params: TuningParams = DEFAULT_PARAMS,
 ): Promise<PitchAnalysis> {
   onProgress(0)
   const f0 = computeF0(samples, ANALYSIS_SAMPLE_RATE)
@@ -27,9 +29,9 @@ export async function analyzePitch(
     // Await the model before calling Basic Pitch: loading also selects the tfjs backend, and
     // Basic Pitch starts tensor work immediately.
     const model = await loadModel()
-    const raw = await runBasicPitch(samples, model, (p) => onProgress(F0_SHARE + p * (1 - F0_SHARE)))
+    const raw = await runBasicPitch(samples, model, (p) => onProgress(F0_SHARE + p * (1 - F0_SHARE)), params)
     onProgress(1)
-    const notes = numberNotes(dropOutliers(mergeFragments(toSegments(toMonophonic(raw), f0), f0), f0))
+    const notes = notesFromRaw(raw, f0, params)
     return { notes, f0: curveForDisplay(f0, notes), usedFallback: false }
   } catch (err) {
     console.error('Basic Pitch failed, falling back to loudness segments', err)

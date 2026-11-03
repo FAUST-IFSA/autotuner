@@ -1,5 +1,6 @@
 import type { NoteSegment } from '../types'
 import { shiftOf } from './music'
+import { DEFAULT_PARAMS } from './params'
 
 /** From time `t` (seconds in the original audio) on, transpose by `semitones`. */
 export interface ShiftChange {
@@ -8,18 +9,11 @@ export interface ShiftChange {
 }
 
 /** Shifts start this much before a note and end this much after it, to cover onsets and releases. */
-export const EDGE_PAD_SECONDS = 0.01
-/**
- * Gaps up to this long between two notes are bridged: each note's shift runs to the middle of the gap. The
- * transitions, consonants and breaths between words are then shifted with their neighbours instead of playing
- * at the original pitch. Longer gaps (phrase breaks) only get the edge pad, and return to 0.
- */
-export const BRIDGE_MAX_GAP_SECONDS = 0.3
+export const EDGE_PAD_SECONDS = DEFAULT_PARAMS.edgePadSeconds
+/** Gaps up to this long between two notes are bridged; see `TuningParams.bridgeMaxGapSeconds`. */
+export const BRIDGE_MAX_GAP_SECONDS = DEFAULT_PARAMS.bridgeMaxGapSeconds
 /** Changes closer together than this collapse into the later one (about 2 render quanta). */
 const MIN_SEGMENT_SECONDS = 0.006
-
-/** How far a note's shift reaches into the gap next to it (never past the middle of the gap). */
-const reach = (gap: number) => (gap <= BRIDGE_MAX_GAP_SECONDS ? gap / 2 : EDGE_PAD_SECONDS)
 
 /**
  * The transpose timeline for playback and export: each note's shift over its span. Across a gap of up to
@@ -27,7 +21,9 @@ const reach = (gap: number) => (gap <= BRIDGE_MAX_GAP_SECONDS ? gap / 2 : EDGE_P
  * `EDGE_PAD_SECONDS` after a note and returns to 0. Notes are in time order and don't overlap. Untouched
  * notes produce no changes at all.
  */
-export function buildSchedule(notes: NoteSegment[]): ShiftChange[] {
+export function buildSchedule(notes: NoteSegment[], params = DEFAULT_PARAMS): ShiftChange[] {
+  // How far a note's shift reaches into the gap next to it (never past the middle of the gap).
+  const reach = (gap: number) => (gap <= params.bridgeMaxGapSeconds ? gap / 2 : params.edgePadSeconds)
   const changes: ShiftChange[] = [{ t: 0, semitones: 0 }]
   const push = (t: number, semitones: number) => {
     const last = changes[changes.length - 1]
@@ -55,7 +51,7 @@ export function buildSchedule(notes: NoteSegment[]): ShiftChange[] {
     const nextShift = next ? shiftOf(next) : 0
     // Return to 0 after the note, unless the next note is edited and close enough to be bridged
     // (it sets its own shift at the middle of the gap).
-    if (!next || gapAfter > BRIDGE_MAX_GAP_SECONDS || Math.abs(nextShift) < 1e-9) push(end, 0)
+    if (!next || gapAfter > params.bridgeMaxGapSeconds || Math.abs(nextShift) < 1e-9) push(end, 0)
   })
   return changes
 }
