@@ -1,4 +1,4 @@
-// Copies LICENSE / NOTICE / COPYING files of every direct dependency
+// Copies LICENSE / NOTICE / COPYING files of every runtime (shipped) dependency
 // into docs/licenses/texts/ and prints name, version and declared license for the register.
 // Packages that ship no license file are reported; fetch their text from upstream by hand.
 import fs from 'node:fs'
@@ -12,7 +12,7 @@ const manifests = ['package.json']
 const deps = new Map()
 for (const m of manifests) {
   const pj = JSON.parse(fs.readFileSync(path.join(root, m), 'utf8'))
-  for (const field of ['dependencies', 'devDependencies']) {
+  for (const field of ['dependencies']) {
     for (const name of Object.keys(pj[field] ?? {})) deps.set(name, field)
   }
 }
