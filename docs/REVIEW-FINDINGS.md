@@ -23,7 +23,7 @@ For what was fixed and why, see [`DECISIONS.md`](DECISIONS.md). This file only t
 | 6   | Limitations are documented only in scattered code comments    | #7           | Open                             |
 | 7   | MP3 export and LGPL compliance                                | #7, #9       | Decision                         |
 | 8   | Clarity and outlier thresholds come from three test vocals    | #5           | Open                             |
-| 9   | Spike code has a wrong script reference                       | #3           | Open (minor)                     |
+| 9   | Spike code has a wrong script reference                       | #3           | Done                             |
 | 10  | Preview while the song is playing; recent-files placement     | #6, #7       | Done (recorded in `DECISIONS.md`) |
 | 11  | How much license bookkeeping is needed                        | #4           | Note                             |
 
@@ -159,13 +159,15 @@ See "Two clarity levels for the F0 curve" and "Outlier filter for stray detectio
 
 ### 9. Spike code references the wrong script
 
-`docs/spikes/code/audio-index.html` loads `./main.ts`, but the file is `audio-main.ts`. It is reference code that
-is not built, so this only matters to someone trying to run the spike.
+`docs/spikes/code/audio-index.html` loaded `./main.ts`, but the file is `audio-main.ts`. It is reference code that
+is not built, so this only mattered to someone trying to run the spike. The script tag now points at
+`./audio-main.ts`. Running the spike also needs `signalsmith-stretch` installed and the synthetic vocal fixtures
+served from the site root (`audio-main.ts` fetches `/synth-vocal-44k-stereo.wav` and `/synth-vocal.truth.json`).
 
 The same review on #3 also said the "Phase 1" section of `DECISIONS.md` described code that wasn't in that PR.
 That is moot now that the code is on `main`.
 
-**Status: Open (minor).** Raised in #3: [audio-index.html:43](https://github.com/FAUST-IFSA/autotuner/pull/3#discussion_r4336772417),
+**Status: Done (script path fixed on the `docs/review-findings-work` branch).** Raised in #3: [audio-index.html:43](https://github.com/FAUST-IFSA/autotuner/pull/3#discussion_r4336772417),
 [DECISIONS.md](https://github.com/FAUST-IFSA/autotuner/pull/3#discussion_r4336900410).
 
 ### 10. Preview during playback, and recent-files placement
