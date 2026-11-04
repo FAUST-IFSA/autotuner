@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AddBackingPrompt } from './components/AddBackingPrompt'
 import type { BackingSettingsUpdate } from './components/BackingBar'
+import { AddBackingScreen } from './screens/AddBackingScreen'
 import { BackingUploadScreen } from './screens/BackingUploadScreen'
 import { DownloadedScreen } from './screens/DownloadedScreen'
 import { EditorScreen } from './screens/EditorScreen'
@@ -8,7 +8,10 @@ import { deleteRecentBacking, saveRecentBacking, saveRecentEdits } from './stora
 import { UploadScreen } from './screens/UploadScreen'
 import type { BackingTrack, NoteSegment, Project } from './types'
 
-/** Adding a backing track: asked once after a new upload, then its upload screen (both cover the editor). */
+/**
+ * Adding a backing track: asked once after a new upload, then its upload screen. Each is a full screen of its
+ * own, covering the editor.
+ */
 type BackingStep = 'ask' | 'upload'
 
 export default function App() {
@@ -74,7 +77,7 @@ export default function App() {
         onRemoveBacking={removeBacking}
         suspended={savedFile !== null || backingStep !== null}
       />
-      {backingStep === 'ask' && <AddBackingPrompt onAdd={() => setBackingStep('upload')} onSkip={skipBacking} />}
+      {backingStep === 'ask' && <AddBackingScreen onAdd={() => setBackingStep('upload')} onSkip={skipBacking} />}
       {backingStep === 'upload' && <BackingUploadScreen onLoaded={addBacking} onCancel={skipBacking} />}
       {savedFile && (
         <DownloadedScreen fileName={savedFile} onBack={() => setSavedFile(null)} onNewVocal={closeProject} />

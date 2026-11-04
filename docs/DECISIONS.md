@@ -7,8 +7,9 @@ Newest first. Each entry: what changed, why, and what it affects.
 ### Backing track, for reference only
 
 A client request: let the singer hear their vocal against the song while tuning. After a new vocal is analysed
-the app asks "Add a backing track?"; yes opens the upload screen again (same dropzone and limits, no recent
-files). Both screens cover the editor, which stays mounted so its engine and undo history survive. "Add
+a screen of its own asks "Add a backing track?"; yes opens the upload screen again (same dropzone and limits,
+no recent files). Both are full screens covering the editor, which stays mounted underneath so its engine and
+undo history survive. "Add
 backing track" in the editor header opens the same screen later, and Remove takes it away again.
 
 - **Playback.** The backing track doesn't go through Signalsmith. It's a plain `AudioBufferSourceNode`, one
