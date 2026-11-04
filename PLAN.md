@@ -38,6 +38,10 @@ Access is gated by an email address, with no passwords or accounts. One file is 
    choice.
 5. **Downloaded** (new). Confirms the file was saved, with buttons to return to the editor or tune another
    vocal.
+6. **Backing track** (added 2026-11-04). After a new vocal is analysed, the app asks whether to add a backing
+   track; yes opens the upload screen again for it ("Add backing track" in the editor does the same later).
+   It plays under the vocal for reference with mute and volume, drawn as a waveform lane above the pitch
+   grid. It is never tuned or exported. Next: lining it up with a partial vocal, then key detection.
 
 ## 2. Architecture
 

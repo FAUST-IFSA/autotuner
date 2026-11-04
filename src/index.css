@@ -254,6 +254,96 @@ button:disabled {
   gap: 12px;
 }
 
+/* Adding a backing track: the question, then the upload screen again, both over the editor. */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(8, 9, 12, 0.72);
+}
+
+.dialog {
+  width: min(440px, 100%);
+  padding: 24px;
+  border: 1px solid #30343d;
+  border-radius: 12px;
+  background: #171a20;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.dialog h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.dialog p {
+  margin: 0 0 20px;
+  color: #9aa1ab;
+  line-height: 1.5;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.backing-upload-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #0f1115;
+}
+
+.backing-note {
+  margin: 8px 0;
+  color: #7d8590;
+  font-size: 14px;
+}
+
+.backing-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid #30343d;
+  font-size: 13px;
+}
+
+.backing-label {
+  color: #5eb0ef;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.backing-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa1ab;
+}
+
+.backing-bar button {
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #9aa1ab;
+}
+
+.volume input {
+  width: 110px;
+  accent-color: #5eb0ef;
+}
+
 .pitch-editor {
   flex: 1;
   min-height: 0;
