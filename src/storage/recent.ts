@@ -1,7 +1,8 @@
 import { del, get, set } from 'idb-keyval'
 import { decodeAudioFile } from '../audio/decode'
 import { isEdited } from '../audio/music'
-import type { F0Curve, NoteSegment, Peaks, Project } from '../types'
+import { voicedRuns } from '../audio/f0'
+import type { F0Curve, NoteSegment, Peaks, Project, TimeSpan } from '../types'
 
 export const MAX_RECENT = 10
 
@@ -26,6 +27,8 @@ interface StoredProject {
   file: Blob
   peaks: Peaks
   f0: F0Curve
+  /** Missing in projects saved before it was added. */
+  audible?: TimeSpan[]
 }
 
 const INDEX_KEY = 'recent:index'
@@ -87,6 +90,7 @@ export function saveRecent(project: Project): Promise<void> {
         file: project.file,
         peaks: project.peaks,
         f0: project.f0,
+        audible: project.audible,
       }
       await set(projectKey(project.id), stored)
       await set(notesKey(project.id), project.notes)
@@ -121,7 +125,8 @@ export async function openRecent(id: string): Promise<Project> {
   const [stored, notes] = await Promise.all([get<StoredProject>(projectKey(id)), get<NoteSegment[]>(notesKey(id))])
   if (!stored || !notes) throw new Error('That project is no longer in recent files.')
   const buffer = await decodeAudioFile(stored.file, stored.fileName)
-  const project: Project = { ...stored, notes, buffer }
+  // Older saves don't have it; the display curve's voiced runs are the closest stand-in (they cover less).
+  const project: Project = { ...stored, audible: stored.audible ?? voicedRuns(stored.f0), notes, buffer }
   await serially(() => touch(project, Date.now())).catch((err) => console.warn('Could not update recent files', err))
   return project
 }

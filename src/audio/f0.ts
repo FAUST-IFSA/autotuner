@@ -1,5 +1,5 @@
 import { PitchDetector } from 'pitchy'
-import type { F0Curve } from '../types'
+import type { F0Curve, TimeSpan } from '../types'
 import { hzToMidi, median } from './music'
 
 /** Basic Pitch requires exactly this rate, so all analysis runs at it. */
@@ -30,30 +30,70 @@ export function computeF0(samples: Float32Array, sampleRate = ANALYSIS_SAMPLE_RA
   const frameCount = Math.ceil(samples.length / HOP)
   const detector = PitchDetector.forFloat32Array(WINDOW)
   const window = new Float32Array(WINDOW)
-  const rms = new Float32Array(frameCount)
   const raw: (number | null)[] = new Array(frameCount)
   const clarity: number[] = new Array(frameCount)
 
   for (let i = 0; i < frameCount; i++) {
     const from = i * HOP - WINDOW / 2
-    let sum = 0
-    for (let j = 0; j < WINDOW; j++) {
-      const s = samples[from + j] ?? 0
-      window[j] = s
-      sum += s * s
-    }
-    rms[i] = Math.sqrt(sum / WINDOW)
+    for (let j = 0; j < WINDOW; j++) window[j] = samples[from + j] ?? 0
     const [hz, c] = detector.findPitch(window, sampleRate)
     clarity[i] = Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0
     raw[i] = c >= NOTE_CLARITY && hz >= MIN_HZ && hz <= MAX_HZ ? hzToMidi(hz) : null
   }
 
-  let loudest = 0
-  for (const r of rms) loudest = Math.max(loudest, r)
-  const silence = Math.max(loudest * SILENCE_RATIO, 1e-4)
+  const rms = frameRms(samples)
+  const silence = silenceLevel(rms)
   for (let i = 0; i < frameCount; i++) if (rms[i] < silence) raw[i] = null
 
   return { hopSec: HOP / sampleRate, midi: medianFilterVoicedRuns(raw, MEDIAN_SIZE), clarity }
+}
+
+/** RMS of the analysis window around each frame's centre. */
+function frameRms(samples: Float32Array): Float32Array {
+  const rms = new Float32Array(Math.ceil(samples.length / HOP))
+  for (let i = 0; i < rms.length; i++) {
+    let sum = 0
+    for (let j = i * HOP - WINDOW / 2; j < i * HOP + WINDOW / 2; j++) sum += (samples[j] ?? 0) ** 2
+    rms[i] = Math.sqrt(sum / WINDOW)
+  }
+  return rms
+}
+
+/** Frames quieter than this are silence. */
+function silenceLevel(rms: Float32Array): number {
+  let loudest = 0
+  for (const r of rms) loudest = Math.max(loudest, r)
+  return Math.max(loudest * SILENCE_RATIO, 1e-4)
+}
+
+/** Runs of frames where `on(i)` holds, as time spans; each frame covers half a hop either side of its centre. */
+function runs(frameCount: number, hopSec: number, on: (i: number) => boolean): TimeSpan[] {
+  const spans: TimeSpan[] = []
+  let i = 0
+  while (i < frameCount) {
+    if (!on(i)) {
+      i++
+      continue
+    }
+    let end = i
+    while (end < frameCount && on(end)) end++
+    spans.push({ start: Math.max(0, (i - 0.5) * hopSec), end: (end - 0.5) * hopSec })
+    i = end
+  }
+  return spans
+}
+
+/** The voiced runs of a curve as time spans. */
+export const voicedRuns = (f0: F0Curve): TimeSpan[] => runs(f0.midi.length, f0.hopSec, (i) => f0.midi[i] !== null)
+
+/**
+ * Where there is any sound (above the silence level `computeF0` uses), voiced or not. Includes what the
+ * pitch tracker can't follow: creaky voice below 70 Hz, breathy or rough voice, consonants, reverb tails.
+ */
+export function audibleRuns(samples: Float32Array, sampleRate = ANALYSIS_SAMPLE_RATE): TimeSpan[] {
+  const rms = frameRms(samples)
+  const silence = silenceLevel(rms)
+  return runs(rms.length, HOP / sampleRate, (i) => rms[i] >= silence)
 }
 
 /** Voiced runs shorter than this (about 70 ms) are hidden outside notes. */

@@ -3,6 +3,7 @@ import type { GraphModel } from '@tensorflow/tfjs'
 import type { F0Curve, NoteSegment } from '../types'
 import { f0Median, f0Support } from './f0'
 import { median } from './music'
+import { DEFAULT_PARAMS } from './params'
 
 /** A note event from Basic Pitch (polyphonic, may overlap). */
 export interface RawNote {
@@ -12,42 +13,70 @@ export interface RawNote {
   amplitude: number
 }
 
-export const MIN_NOTE_SECONDS = 0.06
-export const MERGE_GAP_SECONDS = 0.04
-/** Touching segments whose sung pitch differs by less than this are fragments of one note. */
-export const FRAGMENT_SEMITONES = 0.5
+export const MIN_NOTE_SECONDS = DEFAULT_PARAMS.minNoteSeconds
+export const MERGE_GAP_SECONDS = DEFAULT_PARAMS.mergeGapSeconds
+export const FRAGMENT_SEMITONES = DEFAULT_PARAMS.fragmentSemitones
 /** Outlier rule: short, far from the surrounding melody, and weakly backed by the F0 curve. */
 const OUTLIER_MAX_SECONDS = 0.2
 const OUTLIER_MIN_SEMITONES = 7
 const OUTLIER_MAX_SUPPORT = 0.5
 const OUTLIER_CONTEXT_SECONDS = 2
 
-/** Runs Basic Pitch on 22,050 Hz mono audio. `onProgress` gets 0..1. */
-export async function runBasicPitch(
+/** The model's output for a whole file; the slow part of Basic Pitch. Note decoding from it is cheap. */
+export interface Posteriors {
+  frames: number[][]
+  onsets: number[][]
+  contours: number[][]
+}
+
+/** Runs the Basic Pitch model on 22,050 Hz mono audio. `onProgress` gets 0..1. */
+export async function evaluateBasicPitch(
   samples: Float32Array,
   model: GraphModel,
   onProgress: (fraction: number) => void,
-): Promise<RawNote[]> {
-  const frames: number[][] = []
-  const onsets: number[][] = []
-  const contours: number[][] = []
+): Promise<Posteriors> {
+  const posteriors: Posteriors = { frames: [], onsets: [], contours: [] }
   await new BasicPitch(Promise.resolve(model)).evaluateModel(
     samples,
     (f, o, c) => {
-      frames.push(...f)
-      onsets.push(...o)
-      contours.push(...c)
+      posteriors.frames.push(...f)
+      posteriors.onsets.push(...o)
+      posteriors.contours.push(...c)
     },
     onProgress,
   )
-  // Thresholds from the Basic Pitch README.
-  const events = noteFramesToTime(addPitchBendsToNoteEvents(contours, outputToNotesPoly(frames, onsets, 0.25, 0.25, 5)))
+  return posteriors
+}
+
+/** Turns the model's output into note events, using the thresholds in `params`. */
+export function decodeBasicPitch({ frames, onsets, contours }: Posteriors, params = DEFAULT_PARAMS): RawNote[] {
+  const events = noteFramesToTime(
+    addPitchBendsToNoteEvents(
+      contours,
+      outputToNotesPoly(frames, onsets, params.onsetThreshold, params.frameThreshold, params.minNoteFrames),
+    ),
+  )
   return events.map((e) => ({
     start: e.startTimeSeconds,
     end: e.startTimeSeconds + e.durationSeconds,
     midi: e.pitchMidi,
     amplitude: e.amplitude,
   }))
+}
+
+/** Runs Basic Pitch on 22,050 Hz mono audio. `onProgress` gets 0..1. */
+export async function runBasicPitch(
+  samples: Float32Array,
+  model: GraphModel,
+  onProgress: (fraction: number) => void,
+  params = DEFAULT_PARAMS,
+): Promise<RawNote[]> {
+  return decodeBasicPitch(await evaluateBasicPitch(samples, model, onProgress), params)
+}
+
+/** The whole note pipeline after the model: monophonic, F0 pitches, merged fragments, outliers dropped. */
+export function notesFromRaw(raw: RawNote[], f0: F0Curve, params = DEFAULT_PARAMS): NoteSegment[] {
+  return numberNotes(dropOutliers(mergeFragments(toSegments(toMonophonic(raw, params), f0), f0, params), f0))
 }
 
 /** Removes the parts of `a` covered by `b`. */
@@ -63,19 +92,19 @@ function subtract(a: { start: number; end: number }, b: { start: number; end: nu
  * Makes polyphonic note events monophonic: louder notes win overlaps (quieter ones are trimmed),
  * fragments under 60 ms are dropped, and same-pitch neighbours less than 40 ms apart are merged.
  */
-export function toMonophonic(raw: RawNote[]): RawNote[] {
+export function toMonophonic(raw: RawNote[], params = DEFAULT_PARAMS): RawNote[] {
   const placed: RawNote[] = []
   for (const note of [...raw].sort((a, b) => b.amplitude - a.amplitude || a.start - b.start)) {
     let pieces = [{ start: note.start, end: note.end }]
     for (const p of placed) pieces = pieces.flatMap((piece) => subtract(piece, p))
-    for (const piece of pieces) if (piece.end - piece.start >= MIN_NOTE_SECONDS) placed.push({ ...note, ...piece })
+    for (const piece of pieces) if (piece.end - piece.start >= params.minNoteSeconds) placed.push({ ...note, ...piece })
   }
   placed.sort((a, b) => a.start - b.start)
 
   const merged: RawNote[] = []
   for (const note of placed) {
     const last = merged[merged.length - 1]
-    if (last && last.midi === note.midi && note.start - last.end < MERGE_GAP_SECONDS) {
+    if (last && last.midi === note.midi && note.start - last.end < params.mergeGapSeconds) {
       last.end = Math.max(last.end, note.end)
       last.amplitude = Math.max(last.amplitude, note.amplitude)
     } else merged.push({ ...note })
@@ -107,14 +136,14 @@ export function toSegments(notes: { start: number; end: number; midi?: number }[
  * Rejoins fragments of one sung note. Vibrato that crosses a semitone boundary makes Basic Pitch
  * flip between neighbouring notes, splitting one held note into several short ones.
  */
-export function mergeFragments(segments: NoteSegment[], f0: F0Curve): NoteSegment[] {
+export function mergeFragments(segments: NoteSegment[], f0: F0Curve, params = DEFAULT_PARAMS): NoteSegment[] {
   const merged: NoteSegment[] = []
   for (const seg of segments) {
     const last = merged[merged.length - 1]
     if (
       last &&
-      seg.start - last.end < MERGE_GAP_SECONDS &&
-      Math.abs(seg.detectedMidi - last.detectedMidi) < FRAGMENT_SEMITONES
+      seg.start - last.end < params.mergeGapSeconds &&
+      Math.abs(seg.detectedMidi - last.detectedMidi) < params.fragmentSemitones
     ) {
       const weighted =
         (last.detectedMidi * (last.end - last.start) + seg.detectedMidi * (seg.end - seg.start)) /
