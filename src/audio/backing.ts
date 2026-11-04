@@ -1,6 +1,7 @@
 import type { BackingTrack } from '../types'
-import { mixToMono } from './channels'
+import { mixToMono, resampleMono } from './channels'
 import { decodeAudioFile } from './decode'
+import { KEY_SAMPLE_RATE, detectKey } from './key'
 import { MAX_DURATION_SECONDS } from './loadAudioFile'
 import { computePeaks } from './peaks'
 
@@ -11,12 +12,13 @@ export const DEFAULT_BACKING_VOLUME = 0.8
 export const backingGain = (backing: Pick<BackingTrack, 'volume' | 'muted'>) =>
   backing.muted ? 0 : backing.volume ** 2
 
-/** Decodes a backing track and draws its waveform. It isn't analysed: it's only played for reference. */
+/** Decodes a backing track, draws its waveform and detects its key. It's played for reference, never tuned. */
 export async function loadBackingTrack(file: Blob, fileName: string): Promise<BackingTrack> {
   const buffer = await decodeAudioFile(file, fileName)
   if (buffer.duration > MAX_DURATION_SECONDS) {
     throw new Error(`"${fileName}" is longer than ${MAX_DURATION_SECONDS / 60} minutes.`)
   }
+  const key = detectKey(await resampleMono(buffer, KEY_SAMPLE_RATE))
   return {
     file,
     fileName,
@@ -25,6 +27,7 @@ export async function loadBackingTrack(file: Blob, fileName: string): Promise<Ba
     offset: 0,
     volume: DEFAULT_BACKING_VOLUME,
     muted: false,
+    ...(key && { key: { tonic: key.tonic, mode: key.mode } }),
   }
 }
 

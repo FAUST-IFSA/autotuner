@@ -4,6 +4,28 @@ Newest first. Each entry: what changed, why, and what it affects.
 
 ## 2026-11-04
 
+### Key detection from the backing track
+
+When a backing track is loaded, its key is detected and shown as a "Key" badge in the backing bar, above the
+pitch editor. Nothing uses it for tuning yet; the next step is key-aware Tune Up and snapping.
+
+- **Method.** A mono copy at 11,025 Hz (key detection only needs up to about 2 kHz), 4,096-sample Hann frames
+  with 50% overlap, spectrum bins from C2 to C7 folded into 12 pitch classes, each frame normalised so loud
+  passages don't outweigh quiet ones. The 12-number profile is correlated with the Krumhansl-Kessler
+  major and minor profiles in all 24 keys (`audio/key.ts`). A small radix-2 FFT is included rather than
+  adding a dependency: `fft.js` (already in the tree via pitchy) ships no license file for the register.
+- **Only shown when clear:** a correlation of at least 0.6 and a lead of at least 0.05 over the best other key
+  that isn't the relative major or minor. The relative key is excluded from that margin because it has the
+  same seven notes: mixing up C major and A minor changes the label, not which notes are in key.
+- **Measured.** Unit tests: I-IV-V-I and i-iv-V-i cadences in all 24 keys and an Am-F-C-G-Am-F-E-Am loop
+  are all named correctly; noise, a bare fifth and silence get no key. Synthetic backing tracks (A minor,
+  E♭ major) score 0.94 and 0.93 with margins of 0.26 to 0.37. Real a cappella vocals score 0.48 to 0.76
+  (two of five fall below 0.6 and would get no badge), but vocals aren't used. A 3-minute track takes about
+  0.2 s; a 9:50, 96 kHz file loads as a backing track in 6.3 s in all. Not yet checked against real
+  backing tracks of known key.
+- **Whole track, one key.** The key comes from the whole backing track, not just the part under the vocal,
+  and songs that change key get the strongest one (or none).
+
 ### Lining up a vocal with its backing track
 
 A vocal is often only part of the song, so starting both together would put it in the wrong place. Of the two

@@ -1,20 +1,14 @@
 import type { Project } from '../types'
 import type { AnalysisMessage, AnalysisRequest, AnalysisResult } from './analysis.worker'
-import { mixToMono } from './channels'
+import { mixToMono, resampleMono } from './channels'
 import { decodeAudioFile } from './decode'
 import { ANALYSIS_SAMPLE_RATE } from './f0'
 
 export const MAX_DURATION_SECONDS = 10 * 60
 
-/** Mono at 22,050 Hz for pitch analysis. The OfflineAudioContext handles downmix and resampling. */
-export async function resampleForAnalysis(buffer: AudioBuffer): Promise<Float32Array> {
-  const length = Math.ceil(buffer.duration * ANALYSIS_SAMPLE_RATE)
-  const ctx = new OfflineAudioContext(1, length, ANALYSIS_SAMPLE_RATE)
-  const source = ctx.createBufferSource()
-  source.buffer = buffer
-  source.connect(ctx.destination)
-  source.start()
-  return (await ctx.startRendering()).getChannelData(0)
+/** Mono at 22,050 Hz for pitch analysis. Also used by the sweep page. */
+export function resampleForAnalysis(buffer: AudioBuffer): Promise<Float32Array> {
+  return resampleMono(buffer, ANALYSIS_SAMPLE_RATE)
 }
 
 async function analyzeAudio(buffer: AudioBuffer, onProgress: (fraction: number) => void): Promise<AnalysisResult> {

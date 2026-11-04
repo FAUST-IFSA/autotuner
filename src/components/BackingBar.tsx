@@ -1,3 +1,4 @@
+import { keyName } from '../audio/key'
 import type { BackingTrack } from '../types'
 
 export type BackingSettingsUpdate = Partial<Pick<BackingTrack, 'offset' | 'volume' | 'muted'>>
@@ -39,6 +40,11 @@ export function BackingBar({ backing, onChange, onLineUp, onRemove }: Props) {
       <button type="button" onClick={onRemove}>
         Remove
       </button>
+      {backing.key && (
+        <span className="key-badge" title="Detected from the backing track">
+          Key <strong>{keyName(backing.key)}</strong>
+        </span>
+      )}
     </div>
   )
 }

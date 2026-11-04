@@ -373,6 +373,21 @@ button:disabled {
   white-space: nowrap;
 }
 
+.key-badge {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid #2f4a63;
+  border-radius: 999px;
+  background: #15202b;
+  color: #9aa1ab;
+  white-space: nowrap;
+}
+
+.key-badge strong {
+  margin-left: 4px;
+  color: #e6e8eb;
+}
+
 .volume {
   display: flex;
   align-items: center;

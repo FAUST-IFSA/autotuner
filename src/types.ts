@@ -36,6 +36,12 @@ export interface F0Curve {
   clarity: number[]
 }
 
+/** Pitch class of a key's tonic (0 = C) and its mode. */
+export interface MusicalKey {
+  tonic: number
+  mode: 'major' | 'minor'
+}
+
 /** A song's backing track, played under the vocal for reference: never tuned or exported. */
 export interface BackingTrack {
   file: Blob
@@ -48,6 +54,8 @@ export interface BackingTrack {
   /** Volume slider position, 0..1. */
   volume: number
   muted: boolean
+  /** The song's key, detected from the backing track; absent when it isn't clear. */
+  key?: MusicalKey
 }
 
 export interface Project {

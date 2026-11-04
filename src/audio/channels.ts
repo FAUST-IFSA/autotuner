@@ -13,3 +13,14 @@ export function mixToMono(buffer: AudioBuffer): Float32Array {
   }
   return mono
 }
+
+/** Mono at `sampleRate`; the OfflineAudioContext handles downmix and resampling. */
+export async function resampleMono(buffer: AudioBuffer, sampleRate: number): Promise<Float32Array> {
+  const length = Math.ceil(buffer.duration * sampleRate)
+  const ctx = new OfflineAudioContext(1, length, sampleRate)
+  const source = ctx.createBufferSource()
+  source.buffer = buffer
+  source.connect(ctx.destination)
+  source.start()
+  return (await ctx.startRendering()).getChannelData(0)
+}
