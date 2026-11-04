@@ -7,14 +7,14 @@ import type { NoteSegment, TimeSpan } from '../types'
  * is covered), and turns transport buttons, shortcuts and note grabs into engine calls. Every action
  * does nothing while there is no engine.
  */
-export function usePlayback(engine: AudioEngine | null, notes: NoteSegment[], voiced: TimeSpan[], suspended: boolean) {
+export function usePlayback(engine: AudioEngine | null, notes: NoteSegment[], audible: TimeSpan[], suspended: boolean) {
   // Covered by the Downloaded screen: stop the sound.
   useEffect(() => {
     if (suspended) engine?.pause()
   }, [suspended, engine])
 
   // Playback follows edits as they happen, including mid-drag.
-  useEffect(() => engine?.setNotes(notes, voiced), [engine, notes, voiced])
+  useEffect(() => engine?.setNotes(notes, audible), [engine, notes, audible])
 
   const togglePlay = useCallback(() => {
     if (!engine) return

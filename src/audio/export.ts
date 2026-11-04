@@ -29,11 +29,11 @@ export function resample(buffer: AudioBuffer, sampleRate: number): Promise<Audio
 export async function renderTuned(
   buffer: AudioBuffer,
   notes: NoteSegment[],
-  voiced: TimeSpan[] = [],
+  audible: TimeSpan[] = [],
   onProgress: (fraction: number) => void = () => {},
   params: TuningParams = DEFAULT_PARAMS,
 ): Promise<AudioBuffer> {
-  const schedule = buildSchedule(notes, voiced, params)
+  const schedule = buildSchedule(notes, audible, params)
   if (schedule.length === 1 && schedule[0].semitones === 0) {
     onProgress(1)
     return buffer

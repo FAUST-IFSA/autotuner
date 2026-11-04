@@ -28,7 +28,7 @@ interface StoredProject {
   peaks: Peaks
   f0: F0Curve
   /** Missing in projects saved before it was added. */
-  voiced?: TimeSpan[]
+  audible?: TimeSpan[]
 }
 
 const INDEX_KEY = 'recent:index'
@@ -90,7 +90,7 @@ export function saveRecent(project: Project): Promise<void> {
         file: project.file,
         peaks: project.peaks,
         f0: project.f0,
-        voiced: project.voiced,
+        audible: project.audible,
       }
       await set(projectKey(project.id), stored)
       await set(notesKey(project.id), project.notes)
@@ -125,8 +125,8 @@ export async function openRecent(id: string): Promise<Project> {
   const [stored, notes] = await Promise.all([get<StoredProject>(projectKey(id)), get<NoteSegment[]>(notesKey(id))])
   if (!stored || !notes) throw new Error('That project is no longer in recent files.')
   const buffer = await decodeAudioFile(stored.file, stored.fileName)
-  // Older saves only have the display curve, which misses some voiced audio between notes.
-  const project: Project = { ...stored, voiced: stored.voiced ?? voicedRuns(stored.f0), notes, buffer }
+  // Older saves don't have it; the display curve's voiced runs are the closest stand-in (they cover less).
+  const project: Project = { ...stored, audible: stored.audible ?? voicedRuns(stored.f0), notes, buffer }
   await serially(() => touch(project, Date.now())).catch((err) => console.warn('Could not update recent files', err))
   return project
 }

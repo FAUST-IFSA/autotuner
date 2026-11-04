@@ -47,10 +47,10 @@ export interface Project {
   notes: NoteSegment[]
   f0: F0Curve
   /**
-   * Voiced stretches from the F0 tracker, before the display filtering in `f0` (which hides weak and short
-   * runs outside notes). Shifts carry through the ones between notes; see `buildSchedule`.
+   * Where the recording has any sound, voiced or not. Edited notes' shifts carry through the sound between
+   * notes that wasn't detected as notes; see `buildSchedule`.
    */
-  voiced: TimeSpan[]
+  audible: TimeSpan[]
   /** Basic Pitch failed, so the notes came from the rough loudness fallback (shown as a notice, not saved). */
   approximateNotes?: boolean
 }

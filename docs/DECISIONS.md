@@ -2,21 +2,27 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
-## 2026-11-03 (shifts follow voiced audio between notes)
+## 2026-11-03 (shifts follow the sound between notes)
 
-After gap bridging, a shifted talking vocal (`bside_intro`) still had 12% of its voiced audio rendered at the
-original pitch. All of it sat in gaps over 300 ms, about one syllable at a time. Basic Pitch at its default
-thresholds covers only 78% of the voiced audio that the F0 tracker finds in that file. It is trained on music,
-and speech has few stable notes. Lowering the thresholds to 0.1 covers it all, but nearly doubles the notes
-(166 to 302), and the cleanup still drops a fifth of the audio.
+After gap bridging, a shifted talking vocal (`bside_intro`) still had syllables at the original pitch, all in
+gaps over 300 ms between detected notes. Basic Pitch at its default thresholds covers only 78% of the voiced
+audio that the F0 tracker finds in that file. It is trained on music, and speech has few stable notes.
+Lowering the thresholds to 0.1 covers it all, but nearly doubles the notes (166 to 302), and the cleanup still
+drops a fifth of the audio.
 
-So the schedule now uses the F0 tracker's voiced runs too. In a gap too long to bridge, each half of the gap
-follows its neighbouring note: voiced runs in it take that note's shift, up to 1 s away
-(`voicedFillMaxSeconds`). Runs next to an unedited note stay unshifted. No notes are added to the editor. The
-runs come from the unfiltered F0 curve, because `project.f0` is the display curve, which hides weak and short
-runs outside notes. Projects keep them as `voiced`. Recent files saved before this get them from the display
-curve, which covers less. The editor's F0 curve now takes its shift from the same schedule, so it moves the way
-the audio does (including the bridged gaps).
+So the schedule now fills long gaps from the recording itself. In a gap too long to bridge, each half of the
+gap follows its neighbouring note: any sound in it takes that note's shift, up to 1 s away
+(`gapFillMaxSeconds`). Sound next to an unedited note stays unshifted. No notes are added to the editor.
+
+"Sound" means above the silence level the F0 tracker uses (3% of the loudest frame's RMS), voiced or not. A
+first version used the F0 tracker's voiced runs, and left 6.4 s of the file's 55 s of sound unshifted: none
+of it voiced by the tracker's rules. About half was clear but below its 70 Hz floor (creaky voice at phrase
+ends, read at 31-76 Hz), and half had clarity under 0.6 (breathy or rough voice). Shifting consonants and
+reverb tails along with their word is harmless, so loudness is the simpler and more complete rule.
+
+Projects keep these spans as `audible`. Recent files saved before this use the display curve's voiced runs
+instead, which cover less. The editor's F0 curve now takes its shift from the same schedule, so it moves the
+way the audio does (including the bridged gaps).
 
 ## 2026-11-01 (shifts bridge short gaps)
 

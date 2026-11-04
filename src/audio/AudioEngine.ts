@@ -166,8 +166,8 @@ export class AudioEngine {
   }
 
   /** Call whenever notes change; playback picks up the new shifts within ~60 ms. */
-  setNotes(notes: NoteSegment[], voiced: TimeSpan[] = []) {
-    this.schedule = buildSchedule(notes, voiced)
+  setNotes(notes: NoteSegment[], audible: TimeSpan[] = []) {
+    this.schedule = buildSchedule(notes, audible)
     if (!this.playing) return
     // Re-plan from the earliest moment the node can still change: now plus its output latency.
     const at = this.ctx.currentTime + this.outputLatency + 0.005

@@ -8,14 +8,14 @@ import config from '../../sweep/sweep.config'
 import { copyChannels } from '../audio/channels'
 import { decodeAudioFile } from '../audio/decode'
 import { renderTuned } from '../audio/export'
-import { ANALYSIS_SAMPLE_RATE, NOTE_CLARITY, computeF0, voicedRuns } from '../audio/f0'
+import { ANALYSIS_SAMPLE_RATE, NOTE_CLARITY, audibleRuns, computeF0 } from '../audio/f0'
 import { resampleForAnalysis } from '../audio/loadAudioFile'
 import { isEdited } from '../audio/music'
 import { decodeBasicPitch, evaluateBasicPitch, notesFromRaw, type Posteriors } from '../audio/notes'
 import { DEFAULT_PARAMS, type TuningParams } from '../audio/params'
 import { buildSchedule, shiftAt } from '../audio/schedule'
 import { encodeWav } from '../audio/wav'
-import type { F0Curve, NoteSegment } from '../types'
+import type { F0Curve, NoteSegment, TimeSpan } from '../types'
 import type { SweepEdit } from './sweepConfig'
 
 const AUDIO_FILE = /\.(wav|mp3|m4a|flac|ogg|aac|opus)$/i
@@ -70,8 +70,8 @@ function applyEdit(notes: NoteSegment[], edit: SweepEdit): NoteSegment[] {
 }
 
 /** Share of the voiced audio in the edited range that the schedule leaves at its original pitch. */
-function unshiftedShare(f0: F0Curve, notes: NoteSegment[], edit: SweepEdit, params: TuningParams) {
-  const schedule = buildSchedule(notes, voicedRuns(f0), params)
+function unshiftedShare(f0: F0Curve, notes: NoteSegment[], audible: TimeSpan[], edit: SweepEdit, params: TuningParams) {
+  const schedule = buildSchedule(notes, audible, params)
   const [from, to] = edit.range ?? [0, Infinity]
   let voiced = 0
   let unshifted = 0
@@ -140,6 +140,7 @@ async function runFile(name: string, blob: Blob) {
     const buffer = await decodeAudioFile(blob, name)
     const samples = await resampleForAnalysis(buffer)
     const f0 = computeF0(samples, ANALYSIS_SAMPLE_RATE)
+    const audible = audibleRuns(samples)
     const posteriors = await posteriorsFor(name, blob, samples, setStatus)
 
     const players = [
@@ -150,12 +151,12 @@ async function runFile(name: string, blob: Blob) {
       const params = { ...baseParams, [param]: value }
       const notes = applyEdit(notesFromRaw(decodeBasicPitch(posteriors, params), f0, params), config.edit)
       const started = performance.now()
-      const rendered = await renderTuned(buffer, notes, voicedRuns(f0), undefined, params)
+      const rendered = await renderTuned(buffer, notes, audible, undefined, params)
       const seconds = ((performance.now() - started) / 1000).toFixed(1)
       const meta = [
         `${notes.length} notes, ${notes.filter(isEdited).length} edited`,
         'shift' in config.edit
-          ? `${Math.round(unshiftedShare(f0, notes, config.edit, params) * 100)}% of voiced audio unshifted`
+          ? `${Math.round(unshiftedShare(f0, notes, audible, config.edit, params) * 100)}% of voiced audio unshifted`
           : '',
         `rendered in ${seconds} s`,
       ]

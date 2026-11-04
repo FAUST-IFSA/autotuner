@@ -20,10 +20,10 @@ export interface TuningParams {
   /** Gaps up to this long between notes are bridged: the shifts meet at the middle of the gap. */
   bridgeMaxGapSeconds: number
   /**
-   * Across longer gaps, voiced audio (from the F0 tracker) up to this far from a note takes that note's
-   * shift. Catches syllables that Basic Pitch didn't detect as notes, mostly in speech.
+   * Across longer gaps, sound up to this far from a note takes that note's shift. Catches syllables that
+   * Basic Pitch didn't detect as notes, mostly in speech.
    */
-  voicedFillMaxSeconds: number
+  gapFillMaxSeconds: number
 }
 
 export const DEFAULT_PARAMS: TuningParams = {
@@ -36,5 +36,5 @@ export const DEFAULT_PARAMS: TuningParams = {
   fragmentSemitones: 0.5,
   edgePadSeconds: 0.01,
   bridgeMaxGapSeconds: 0.3,
-  voicedFillMaxSeconds: 1,
+  gapFillMaxSeconds: 1,
 }

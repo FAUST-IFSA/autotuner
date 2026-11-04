@@ -40,7 +40,7 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
   const { togglePlay, seek, skip, toStart, grab, grabShift, release, playNote } = usePlayback(
     engine,
     notes,
-    project.voiced,
+    project.audible,
     suspended,
   )
   useEditorShortcuts({
@@ -119,7 +119,7 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
         peaks={project.peaks}
         notes={notes}
         f0={project.f0}
-        voiced={project.voiced}
+        audible={project.audible}
         duration={project.buffer.duration}
         selection={selection}
         snap={snap}

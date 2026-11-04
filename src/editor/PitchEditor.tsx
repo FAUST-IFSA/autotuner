@@ -21,8 +21,8 @@ interface Props {
   peaks: Peaks
   notes: NoteSegment[]
   f0: Curve
-  /** Voiced audio between notes, which edited notes' shifts carry through. */
-  voiced: TimeSpan[]
+  /** Sound between notes, which edited notes' shifts carry through. */
+  audible: TimeSpan[]
   duration: number
   selection: Set<string>
   snap: boolean
@@ -45,8 +45,8 @@ interface Props {
 }
 
 /** Semitone shift per F0 frame, from the playback schedule, so the curve moves exactly as the audio does. */
-function frameShifts(notes: NoteSegment[], voiced: TimeSpan[], f0: Curve) {
-  const schedule = buildSchedule(notes, voiced)
+function frameShifts(notes: NoteSegment[], audible: TimeSpan[], f0: Curve) {
+  const schedule = buildSchedule(notes, audible)
   const out = new Float32Array(f0.midi.length)
   let k = 0
   for (let i = 0; i < out.length; i++) {
@@ -60,7 +60,7 @@ export function PitchEditor({
   peaks,
   notes,
   f0,
-  voiced,
+  audible,
   duration,
   selection,
   snap,
@@ -106,7 +106,7 @@ export function PitchEditor({
     onRelease,
   })
 
-  const shifts = useMemo(() => frameShifts(notes, voiced, f0), [notes, voiced, f0])
+  const shifts = useMemo(() => frameShifts(notes, audible, f0), [notes, audible, f0])
 
   // The same element list across scroll-only renders, so React skips all the blobs while panning.
   const blobs = useMemo(

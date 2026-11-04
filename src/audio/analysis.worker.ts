@@ -12,7 +12,7 @@ export interface AnalysisRequest {
   analysisSamples: Float32Array
 }
 
-export type AnalysisResult = Pick<Project, 'peaks' | 'notes' | 'f0' | 'voiced'> & { usedFallback: boolean }
+export type AnalysisResult = Pick<Project, 'peaks' | 'notes' | 'f0' | 'audible'> & { usedFallback: boolean }
 
 export type AnalysisMessage =
   { type: 'progress'; fraction: number } | { type: 'done'; result: AnalysisResult } | { type: 'error'; message: string }
@@ -33,10 +33,10 @@ self.onmessage = async (event: MessageEvent<AnalysisRequest>) => {
   const { samples, sampleRate, analysisSamples } = event.data
   try {
     const peaks = computePeaks(samples, sampleRate)
-    const { notes, f0, voiced, usedFallback } = await analyzePitch(analysisSamples, loadModel, (fraction) =>
+    const { notes, f0, audible, usedFallback } = await analyzePitch(analysisSamples, loadModel, (fraction) =>
       post({ type: 'progress', fraction }),
     )
-    post({ type: 'done', result: { peaks, notes, f0, voiced, usedFallback } }, [peaks.min.buffer, peaks.max.buffer])
+    post({ type: 'done', result: { peaks, notes, f0, audible, usedFallback } }, [peaks.min.buffer, peaks.max.buffer])
   } catch (err) {
     post({ type: 'error', message: err instanceof Error ? err.message : String(err) })
   }

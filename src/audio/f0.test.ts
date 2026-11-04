@@ -6,6 +6,7 @@ import {
   dropShortRuns,
   f0Median,
   f0Support,
+  audibleRuns,
   medianFilterVoicedRuns,
   voicedRuns,
 } from './f0'
@@ -99,5 +100,25 @@ describe('voicedRuns', () => {
     expect(runs[0].end).toBeCloseTo(0.025)
     expect(runs[1].start).toBeCloseTo(0.045)
     expect(runs[1].end).toBeCloseTo(0.055)
+  })
+})
+
+describe('audibleRuns', () => {
+  it('counts unvoiced sound as well as voice, but not silence', () => {
+    const sr = ANALYSIS_SAMPLE_RATE
+    // 0.2 s tone, 0.3 s silence, 0.2 s quiet noise (no pitch, but well above the silence level).
+    const samples = new Float32Array(Math.round(0.7 * sr))
+    samples.set(tone(60, 0.2))
+    let seed = 1
+    for (let i = Math.round(0.5 * sr); i < samples.length; i++) {
+      seed = (seed * 16807) % 2147483647
+      samples[i] = 0.05 * (seed / 2147483647 - 0.5) * 2
+    }
+    const runs = audibleRuns(samples)
+    expect(runs).toHaveLength(2)
+    expect(runs[0].start).toBe(0)
+    expect(runs[0].end).toBeCloseTo(0.2, 1)
+    expect(runs[1].start).toBeCloseTo(0.5, 1)
+    expect(runs[1].end).toBeCloseTo(0.7, 1)
   })
 })

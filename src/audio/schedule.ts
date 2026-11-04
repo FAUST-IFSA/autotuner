@@ -15,7 +15,7 @@ export const BRIDGE_MAX_GAP_SECONDS = DEFAULT_PARAMS.bridgeMaxGapSeconds
 /** Changes closer together than this collapse into the later one (about 2 render quanta). */
 const MIN_SEGMENT_SECONDS = 0.006
 
-/** A stretch of audio and the shift it gets: a note, or voiced audio between notes that follows one. */
+/** A stretch of audio and the shift it gets: a note, or sound between notes that follows one. */
 interface Shifted {
   start: number
   end: number
@@ -23,14 +23,14 @@ interface Shifted {
 }
 
 /**
- * Voiced audio that Basic Pitch didn't turn into notes (common in speech: syllables between detected words)
- * sits in the gaps between notes. Across gaps too long to bridge, each half of the gap follows its
- * neighbouring note: voiced runs in it take that note's shift, up to `voicedFillMaxSeconds` away from it.
- * Runs next to an untouched note get 0, so a shift never spills into audio next to unedited notes.
+ * Sound that Basic Pitch didn't turn into notes (common in speech: syllables between detected words, creaky
+ * or breathy endings) sits in the gaps between notes. Across gaps too long to bridge, each half of the gap
+ * follows its neighbouring note: sound in it takes that note's shift, up to `gapFillMaxSeconds` away from it.
+ * Sound next to an untouched note gets 0, so a shift never spills into audio next to unedited notes.
  */
-function withVoicedFill(notes: NoteSegment[], voiced: TimeSpan[], params: TuningParams): Shifted[] {
+function withGapFill(notes: NoteSegment[], audible: TimeSpan[], params: TuningParams): Shifted[] {
   const spans: Shifted[] = notes.map((n) => ({ start: n.start, end: n.end, shift: shiftOf(n) }))
-  if (notes.length === 0 || voiced.length === 0) return spans
+  if (notes.length === 0 || audible.length === 0) return spans
   let v = 0
   for (let i = 0; i <= notes.length; i++) {
     const prev = notes[i - 1]
@@ -39,14 +39,14 @@ function withVoicedFill(notes: NoteSegment[], voiced: TimeSpan[], params: Tuning
     const from = prev ? prev.end : -Infinity
     const to = next ? next.start : Infinity
     const middle = prev && next ? (from + to) / 2 : prev ? Infinity : -Infinity
-    while (v < voiced.length && voiced[v].end <= from) v++
-    for (let k = v; k < voiced.length && voiced[k].start < to; k++) {
-      const start = Math.max(voiced[k].start, from)
-      const end = Math.min(voiced[k].end, to)
-      if (prev && start < middle && start - prev.end <= params.voicedFillMaxSeconds) {
+    while (v < audible.length && audible[v].end <= from) v++
+    for (let k = v; k < audible.length && audible[k].start < to; k++) {
+      const start = Math.max(audible[k].start, from)
+      const end = Math.min(audible[k].end, to)
+      if (prev && start < middle && start - prev.end <= params.gapFillMaxSeconds) {
         spans.push({ start, end: Math.min(end, middle), shift: shiftOf(prev) })
       }
-      if (next && end > middle && next.start - end <= params.voicedFillMaxSeconds) {
+      if (next && end > middle && next.start - end <= params.gapFillMaxSeconds) {
         spans.push({ start: Math.max(start, middle), end, shift: shiftOf(next) })
       }
     }
@@ -56,13 +56,13 @@ function withVoicedFill(notes: NoteSegment[], voiced: TimeSpan[], params: Tuning
 
 /**
  * The transpose timeline for playback and export: each note's shift over its span, carried through the
- * voiced audio around it (see `withVoicedFill`). Across a gap of up to `bridgeMaxGapSeconds` two neighbours
+ * sound around it (see `withGapFill`). Across a gap of up to `bridgeMaxGapSeconds` two neighbours
  * meet at the middle of the gap; across a longer gap the shift ends `edgePadSeconds` after them and returns
- * to 0. Notes and voiced runs are in time order and don't overlap. Untouched notes produce no changes.
+ * to 0. Notes and sound spans are in time order and don't overlap. Untouched notes produce no changes.
  */
 export function buildSchedule(
   notes: NoteSegment[],
-  voiced: TimeSpan[] = [],
+  audible: TimeSpan[] = [],
   params: TuningParams = DEFAULT_PARAMS,
 ): ShiftChange[] {
   // How far a shift reaches into the gap next to it (never past the middle of the gap).
@@ -81,7 +81,7 @@ export function buildSchedule(
     if (before && Math.abs(before.semitones - semitones) < 1e-9) changes.pop()
   }
 
-  const spans = withVoicedFill(notes, voiced, params)
+  const spans = withGapFill(notes, audible, params)
   spans.forEach((span, i) => {
     const prev = spans[i - 1]
     const next = spans[i + 1]
