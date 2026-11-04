@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MusicalKey } from '../types'
-import { KEY_SAMPLE_RATE, chromaOf, detectKey, estimateKey, keyName } from './key'
+import { KEY_SAMPLE_RATE, chromaOf, detectKey, estimateKey, isClearKey, keyName, scaleContrast } from './key'
 
 const SR = KEY_SAMPLE_RATE
 
@@ -72,6 +72,34 @@ describe('key detection', () => {
     expect(detectKey(render(Array.from({ length: 8 }, () => [48, 55])))).toBeNull()
     expect(detectKey(new Float32Array(8 * SR))).toBeNull()
     expect(estimateKey(chromaOf(new Float32Array(8 * SR), SR))).toBeNull()
+  })
+
+  // Pitch-class strength (C to B, strongest = 100) of two real backing tracks: Cambridge-MT multitracks with the
+  // vocals left out.
+  const ALONE_WITH_YOU = [23, 57, 100, 32, 90, 33, 86, 84, 35, 81, 26, 92]
+  const WINDOW = [47, 21, 100, 25, 90, 42, 36, 64, 27, 98, 17, 74]
+
+  it('names a real song whose notes are exactly its key', () => {
+    const estimate = estimateKey(ALONE_WITH_YOU)!
+    expect(keyName(estimate)).toBe('D major')
+    expect(isClearKey(estimate)).toBe(true)
+  })
+
+  it("doesn't name a key whose notes the music doesn't use", () => {
+    // The profiles' best match is D major, but the riff uses C and F more than C♯ and F♯.
+    const estimate = estimateKey(WINDOW)!
+    expect(keyName(estimate)).toBe('D major')
+    expect(estimate.score).toBeGreaterThan(0.6)
+    expect(estimate.contrast).toBe(0)
+    expect(isClearKey(estimate)).toBe(false)
+  })
+
+  it('accepts the natural or raised 6th and 7th in minor keys', () => {
+    // A minor: G and G♯ (and F and F♯) all count as in the key, so only C♯, D♯ and A♯ are outside it. The
+    // seven strongest end with G♯ at 45, against 5 outside.
+    const aMinor = [80, 5, 60, 5, 90, 55, 10, 40, 45, 100, 5, 50]
+    expect(scaleContrast(aMinor, { tonic: 9, mode: 'minor' })).toBe(9)
+    expect(scaleContrast(aMinor, { tonic: 0, mode: 'major' })).toBe(0)
   })
 
   it('names keys with the usual spellings', () => {

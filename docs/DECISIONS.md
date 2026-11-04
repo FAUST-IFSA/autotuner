@@ -17,6 +17,12 @@ pitch editor. Nothing uses it for tuning yet; the next step is key-aware Tune Up
 - **Only shown when clear:** a correlation of at least 0.6 and a lead of at least 0.05 over the best other key
   that isn't the relative major or minor. The relative key is excluded from that margin because it has the
   same seven notes: mixing up C major and A minor changes the label, not which notes are in key.
+- **And only when the music uses the key's notes** (`scaleContrast`). The seven strongest pitch classes must
+  all be in the key (for minor, the natural or raised 6th and 7th both count), and the weakest of them must be
+  at least 1.25 times the strongest note outside it. Added after the first real backing tracks (Cambridge-MT
+  multitracks, vocals left out): "Alone With You" is exactly D major (contrast 1.6) and is shown; "Window"
+  correlates best with D major (0.77) but uses C and F more than C♯ and F♯, so it's now hidden rather than
+  mislabelled.
 - **Measured.** Unit tests: I-IV-V-I and i-iv-V-i cadences in all 24 keys and an Am-F-C-G-Am-F-E-Am loop
   are all named correctly; noise, a bare fifth and silence get no key. Synthetic backing tracks (A minor,
   E♭ major) score 0.94 and 0.93 with margins of 0.26 to 0.37. Real a cappella vocals score 0.48 to 0.76

@@ -35,7 +35,7 @@ lives in the code. Reasoning and measurements are in [`DECISIONS.md`](DECISIONS.
 | **The backing track is only heard under the vocal.** The editor's timeline is the vocal's. | Any part of the song before the vocal starts or after it ends isn't shown or played. | `audio/backing.ts` (`backingSpan`) |
 | **Lining up is by hand.** There's no automatic alignment. | Placement relies on dragging (zoomed in for precision), the 10 ms nudges and listening. | `screens/LineUpScreen.tsx` |
 | **One key per song, from the backing track only.** Key changes aren't followed, tuning away from A440 isn't measured, and a vocal alone never gets a key. | A song that modulates shows its strongest key or none; a detuned backing track can read as a neighbouring key. | `audio/key.ts` |
-| **Key thresholds were set on synthetic tracks and a few vocals.** | Real backing tracks of known key haven't been tested yet, so how often the badge is missing or wrong is unmeasured. | `audio/key.ts` (`MIN_SCORE`, `MIN_MARGIN`) |
+| **Key thresholds were set on synthetic tracks and two real backing tracks.** Modes other than major and minor (Dorian, Mixolydian) are never named. | How often the badge is missing or wrong on real songs is unmeasured; a modal song gets no badge. | `audio/key.ts` (`MIN_SCORE`, `MIN_MARGIN`, `MIN_CONTRAST`) |
 | **A backing track roughly doubles a project's memory and storage.** It's decoded in full, and the original file is kept in recent files. | Two 10-minute files may not fit the browser's storage quota; a backing track that doesn't fit is left out of recent files with a console warning. | `audio/backing.ts`, `storage/recent.ts` |
 
 ## Engine

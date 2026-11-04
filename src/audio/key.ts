@@ -11,14 +11,27 @@ export interface KeyEstimate extends MusicalKey {
    * mixing the two up doesn't change which notes are in key).
    */
   margin: number
+  /**
+   * How clearly the key's own notes stand out: the weakest of the seven strongest pitch classes over the
+   * strongest note outside the key. 0 when those seven aren't all in the key.
+   */
+  contrast: number
 }
 
 /** The rate chroma is computed at: key detection only needs content up to about 2 kHz. */
 export const KEY_SAMPLE_RATE = 11025
 
-/** Below either of these the key isn't shown: the music doesn't point clearly at one key. */
+/** Below any of these the key isn't shown: the music doesn't point clearly at one key. */
 const MIN_SCORE = 0.6
 const MIN_MARGIN = 0.05
+const MIN_CONTRAST = 1.25
+
+/**
+ * The notes a key's music uses, as semitones above the tonic. Minor allows the natural or raised 6th and 7th
+ * (natural, harmonic and melodic minor), so a minor key has nine.
+ */
+const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11]
+const MINOR_SCALE = [0, 2, 3, 5, 7, 8, 9, 10, 11]
 
 // Krumhansl & Kessler (1982) probe-tone ratings, from the tonic up.
 const MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
@@ -131,6 +144,20 @@ function correlation(a: readonly number[], b: readonly number[]) {
 const relativeOf = ({ tonic, mode }: MusicalKey): MusicalKey =>
   mode === 'major' ? { tonic: (tonic + 9) % 12, mode: 'minor' } : { tonic: (tonic + 3) % 12, mode: 'major' }
 
+/**
+ * Whether the chroma's seven strongest pitch classes are all notes of `key`, and by how much the weakest of them
+ * beats the strongest note outside it (see KeyEstimate.contrast). The correlation alone can pick a key whose
+ * notes the music doesn't use, such as D major for a riff that uses C and F rather than C♯ and F♯.
+ */
+export function scaleContrast(chroma: readonly number[], key: MusicalKey): number {
+  const scale = new Set((key.mode === 'major' ? MAJOR_SCALE : MINOR_SCALE).map((d) => (key.tonic + d) % 12))
+  const order = Array.from({ length: 12 }, (_, pc) => pc).sort((a, b) => chroma[b] - chroma[a])
+  const strongest = order.slice(0, 7)
+  if (!strongest.every((pc) => scale.has(pc))) return 0
+  const outside = Math.max(...order.filter((pc) => !scale.has(pc)).map((pc) => chroma[pc]))
+  return outside > 0 ? chroma[strongest[6]] / outside : Infinity
+}
+
 /** The best-matching key for a chroma; null for silence. */
 export function estimateKey(chroma: readonly number[]): KeyEstimate | null {
   if (!chroma.some((c) => c > 0)) return null
@@ -145,12 +172,12 @@ export function estimateKey(chroma: readonly number[]): KeyEstimate | null {
   const best = keys[0]
   const relative = relativeOf(best)
   const rival = keys.find((k) => k !== best && !(k.tonic === relative.tonic && k.mode === relative.mode))!
-  return { ...best, margin: best.score - rival.score }
+  return { ...best, margin: best.score - rival.score, contrast: scaleContrast(chroma, best) }
 }
 
 /** True when an estimate is strong enough to show. */
 export const isClearKey = (estimate: KeyEstimate | null): estimate is KeyEstimate =>
-  estimate !== null && estimate.score >= MIN_SCORE && estimate.margin >= MIN_MARGIN
+  estimate !== null && estimate.score >= MIN_SCORE && estimate.margin >= MIN_MARGIN && estimate.contrast >= MIN_CONTRAST
 
 /** The key of mono audio at KEY_SAMPLE_RATE, or null when it isn't clear. */
 export function detectKey(samples: Float32Array): KeyEstimate | null {
