@@ -41,8 +41,8 @@ Access is gated by an email address, with no passwords or accounts. One file is 
 6. **Backing track** (added 2026-11-04). After a new vocal is analysed, the app asks whether to add a backing
    track; yes opens the upload screen again for it ("Add backing track" in the editor does the same later).
    It plays under the vocal for reference with mute and volume, drawn as a waveform lane above the pitch
-   grid. It is never tuned or exported. When the two files differ in length, a Line up screen places the vocal
-   in the song by dragging and nudging. Next: key detection.
+   grid. It is never tuned or exported. After the upload, a Line up screen places the vocal in the song by
+   dragging and nudging (files of the same length start together). Next: key detection.
 
 ## 2. Architecture
 

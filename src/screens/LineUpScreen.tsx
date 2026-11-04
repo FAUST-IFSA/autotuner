@@ -1,8 +1,8 @@
 import type Konva from 'konva'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { Group, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import { LineUpPlayer } from '../audio/LineUpPlayer'
-import { clampOffset, formatSongTime, lineUpRange } from '../audio/backing'
+import { clampOffset, formatSongTime, lineUpRange, sameLength } from '../audio/backing'
 import { getAudioContext } from '../audio/decode'
 import { RULER_HEIGHT } from '../editor/layout'
 import { TimeRuler } from '../editor/TimeRuler'
@@ -22,13 +22,15 @@ const LANE_GAP = 8
 const VOCAL_TOP = RULER_HEIGHT + LANE_HEIGHT + LANE_GAP
 const STAGE_HEIGHT = VOCAL_TOP + LANE_HEIGHT
 const WAVE_PADDING = 8
-/** Play starts this long before the vocal comes in. */
+/** The playhead starts this long before the vocal comes in. */
 const PRE_ROLL = 2
 const NUDGES = [-0.1, -0.01, 0.01, 0.1]
+/** Arrow keys move the playhead this far (with Shift, five times as far). */
+const SEEK_STEP = 1
 
 /**
- * Lines a vocal up with a backing track it doesn't match in length (a verse cut from a whole song, say):
- * drag the vocal along the song, nudge it, and play both to check by ear. One clip, one move: nothing else.
+ * Lines a vocal up with its backing track, after every backing upload: drag the vocal along the song (a verse
+ * cut from a whole song, say), nudge it, and play both to check by ear. One clip, one move: nothing else.
  */
 export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
   const vocalDuration = vocal.buffer.duration
@@ -46,18 +48,30 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
     () => new LineUpPlayer(getAudioContext(), vocal.buffer, backing.buffer, backing.volume ** 2),
   )
   const [playing, setPlaying] = useState(false)
+  /** Song time where the playhead rests: playback starts here, and pausing leaves it where it stopped. */
+  const beforeVocal = (at: number) => Math.max(Math.min(0, at), at - PRE_ROLL)
+  const [head, setHead] = useState(() => beforeVocal(offset))
   const playheadRef = useRef<Konva.Line>(null)
+  /** Set by a drag of the vocal, so the click that ends it doesn't also move the playhead. */
+  const dragged = useRef(false)
   useEffect(() => () => player.stop(), [player])
 
   const play = (from: number, at = offset) => {
     void player.play(from, at)
     setPlaying(true)
   }
-  const stop = () => {
+  const pause = () => {
+    setHead(player.position)
     player.stop()
     setPlaying(false)
   }
-  const playFromVocal = () => play(Math.max(Math.min(0, offset), offset - PRE_ROLL))
+  const position = () => (player.isPlaying ? player.position : head)
+  /** Moves the playhead; playback carries on from there. */
+  const seekTo = (t: number) => {
+    const clamped = Math.min(range.end, Math.max(range.start, t))
+    setHead(clamped)
+    if (player.isPlaying) play(clamped)
+  }
   /** Moves the vocal; playing restarts from the same spot so the change is heard straight away. */
   const moveTo = (next: number) => {
     const clamped = clamp(next)
@@ -65,13 +79,27 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
     if (player.isPlaying) play(player.position, clamped)
   }
 
-  // The playhead follows playback every frame, without re-rendering; playback stops at the end of both.
+  // The playhead follows playback every frame, without re-rendering. At the end of both, playback stops and
+  // the playhead goes back to just before the vocal.
   const onFrame = useEffectEvent(() => {
     const t = player.position
-    if (t >= Math.max(backingDuration, offset + vocalDuration)) return stop()
+    if (t >= Math.max(backingDuration, offset + vocalDuration)) {
+      player.stop()
+      setPlaying(false)
+      setHead(beforeVocal(offset))
+      return
+    }
     playheadRef.current?.x(toX(t))
     playheadRef.current?.getLayer()?.batchDraw()
   })
+  // While stopped, the playhead sits at `head`.
+  const placeHead = useEffectEvent(() => {
+    playheadRef.current?.x(toX(head))
+    playheadRef.current?.getLayer()?.batchDraw()
+  })
+  useLayoutEffect(() => {
+    if (!playing) placeHead()
+  }, [playing, head, width])
   useEffect(() => {
     if (!playing) return
     let frame = requestAnimationFrame(function tick() {
@@ -83,12 +111,17 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
 
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (e.target instanceof HTMLButtonElement && (e.key === ' ' || e.key === 'Enter')) return
+    const direction = e.key === 'ArrowLeft' ? -1 : 1
     if (e.key === ' ') {
-      if (playing) stop()
-      else playFromVocal()
+      if (playing) pause()
+      else play(head)
+    } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.altKey) {
+      // Option/Alt + arrows nudge the vocal.
+      moveTo(offset + direction * (e.shiftKey ? 0.1 : 0.01))
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      moveTo(offset + (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 0.1 : 0.01))
-    } else if (e.key === 'Escape') onCancel()
+      seekTo(position() + direction * SEEK_STEP * (e.shiftKey ? 5 : 1))
+    } else if (e.key === 'Enter') seekTo(beforeVocal(offset))
+    else if (e.key === 'Escape') onCancel()
     else return
     e.preventDefault()
   })
@@ -103,7 +136,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
   const clipWidth = vocalDuration * pxPerSec
 
   return (
-    // Mouse clicks don't leave focus on buttons, so Space keeps meaning play/stop after a click.
+    // Mouse clicks don't leave focus on buttons, so Space keeps meaning play/pause after a click.
     <main
       className="line-up-screen"
       onMouseDown={(e) => {
@@ -112,22 +145,22 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
     >
       <h1>Line up your vocal</h1>
       <p className="subtitle">
-        Your vocal and backing track are different lengths. Drag your vocal to where it starts in the song, then play to
-        check.
+        {sameLength(vocalDuration, backingDuration)
+          ? 'Your vocal and backing track are the same length, so they probably start together. Play to check, then choose Done.'
+          : 'Your vocal and backing track are different lengths. Drag your vocal to where it starts in the song, then play to check.'}
       </p>
       <div ref={containerRef} className="line-up-tracks">
         {width > 0 && (
           <Stage width={width} height={STAGE_HEIGHT}>
             <Layer>
-              <TimeRuler duration={range.end} pxPerSec={pxPerSec} scrollX={range.start * pxPerSec} width={width} />
-              {/* Clicking either lane (but not the clip) plays from there. */}
+              {/* A click anywhere (ruler, lanes or the vocal) moves the playhead there. */}
               <Rect
-                y={RULER_HEIGHT}
                 width={width}
-                height={STAGE_HEIGHT - RULER_HEIGHT}
+                height={STAGE_HEIGHT}
                 fill="#0f1115"
-                onClick={(e) => play(toTime(e.target.getStage()!.getPointerPosition()!.x))}
+                onClick={(e) => seekTo(toTime(e.target.getStage()!.getPointerPosition()!.x))}
               />
+              <TimeRuler duration={range.end} pxPerSec={pxPerSec} scrollX={range.start * pxPerSec} width={width} />
               <Group y={RULER_HEIGHT} listening={false}>
                 <Rect x={toX(0)} width={backingDuration * pxPerSec} height={LANE_HEIGHT} fill="#151b23" />
                 <Group y={WAVE_PADDING}>
@@ -149,11 +182,20 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
                 y={VOCAL_TOP}
                 draggable
                 dragBoundFunc={(pos) => ({ x: toX(clamp(toTime(pos.x))), y: VOCAL_TOP })}
-                onDragStart={() => setCursor('grabbing')}
+                onMouseDown={() => {
+                  dragged.current = false
+                }}
+                onDragStart={() => {
+                  dragged.current = true
+                  setCursor('grabbing')
+                }}
                 onDragMove={(e) => setOffset(clamp(toTime(e.target.x())))}
                 onDragEnd={(e) => {
                   setCursor('grab')
                   moveTo(toTime(e.target.x()))
+                }}
+                onClick={(e) => {
+                  if (!dragged.current) seekTo(toTime(e.target.getStage()!.getPointerPosition()!.x))
                 }}
                 onMouseEnter={() => setCursor('grab')}
                 onMouseLeave={() => setCursor('')}
@@ -189,7 +231,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
                 listening={false}
               />
             </Layer>
-            <Layer listening={false} visible={playing}>
+            <Layer listening={false}>
               <Line ref={playheadRef} points={[0, 0, 0, STAGE_HEIGHT]} stroke="#7f9cf5" strokeWidth={2} />
             </Layer>
           </Stage>
@@ -201,8 +243,8 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
           : `Your vocal starts ${formatSongTime(-offset)} before the backing track`}
       </p>
       <div className="line-up-controls">
-        <button type="button" onClick={playing ? stop : playFromVocal}>
-          {playing ? 'Stop' : 'Play'}
+        <button type="button" onClick={playing ? pause : () => play(head)}>
+          {playing ? 'Pause' : 'Play'}
         </button>
         <div className="nudges">
           {NUDGES.map((step) => (
@@ -222,8 +264,8 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
         </button>
       </div>
       <p className="line-up-hint">
-        Space plays from just before your vocal; click a waveform to play from there. ← and → nudge your vocal (hold
-        Shift for bigger steps).
+        Click anywhere or use ← → to move the playhead (Shift: 5 s); Enter goes back to just before your vocal; Space
+        plays and pauses. Option/Alt + ← → nudges your vocal (Shift: 100 ms).
       </p>
       <div className="line-up-actions">
         <button type="button" onClick={onCancel}>

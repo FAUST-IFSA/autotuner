@@ -4,16 +4,19 @@ Newest first. Each entry: what changed, why, and what it affects.
 
 ## 2026-11-04
 
-### Lining up a vocal with a longer (or shorter) backing track
+### Lining up a vocal with its backing track
 
 A vocal is often only part of the song, so starting both together would put it in the wrong place. Of the two
 options (line them up, or only accept backing tracks the same length as the vocal) we chose lining up, kept to
 one move: the Line up screen shows the whole backing track with the vocal as a single clip under it. Drag the
-clip, nudge it by 10 or 100 ms (buttons or ← →, Shift for 100 ms), and play both from just before the vocal or
-from any click. Done saves `offset`; Cancel keeps the old one. It's reached from "Line up" in the backing bar.
+clip or nudge it by 10 or 100 ms (buttons, or Option/Alt + ← →, Shift for 100 ms). A playhead marks where
+playback starts: click anywhere or use ← → to move it (Shift for 5 s), Enter puts it just before the vocal, and
+Space plays and pauses. Done saves `offset`; Cancel keeps the old one. It's reached from "Line up" in the
+backing bar.
 
-- **Same length skips it.** Files within 0.1 s of each other were almost certainly exported together from one
-  session, so they start together and the screen isn't shown (`sameLength`).
+- **Always shown after a backing upload**, so the user confirms the placement before the editor opens. Files
+  within 0.1 s of each other in length were almost certainly exported together from one session, so they start
+  together and the screen says so (`sameLength`).
 - **No automatic alignment.** An instrumental and a vocal share no audio, so there's nothing reliable to match.
   It could work for full mixes that still contain the vocal; not attempted.
 - **Line-up playback** is two plain buffer sources (`LineUpPlayer`), with no tuning: only timing matters here.

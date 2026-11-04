@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { sameLength } from './audio/backing'
 import type { BackingSettingsUpdate } from './components/BackingBar'
 import { AddBackingScreen } from './screens/AddBackingScreen'
 import { BackingUploadScreen } from './screens/BackingUploadScreen'
@@ -11,8 +10,8 @@ import { UploadScreen } from './screens/UploadScreen'
 import type { BackingTrack, NoteSegment, Project } from './types'
 
 /**
- * Adding a backing track: asked once after a new upload, then its upload screen, then lining it up if the
- * lengths differ. Each is a full screen of its own, covering the editor.
+ * Adding a backing track: asked once after a new upload, then its upload screen, then lining it up. Each is
+ * a full screen of its own, covering the editor.
  */
 type BackingStep = 'ask' | 'upload' | 'lineUp'
 
@@ -58,8 +57,8 @@ export default function App() {
   const addBacking = (backing: BackingTrack) => {
     setProject((p) => p && { ...p, backing })
     void saveRecentBacking(project.id, backing)
-    // Files of the same length were exported together, so they already line up.
-    setBackingStep(sameLength(project.buffer.duration, backing.buffer.duration) ? null : 'lineUp')
+    // Always confirm where the vocal sits before editing; files of the same length start lined up.
+    setBackingStep('lineUp')
   }
 
   const removeBacking = () => {
