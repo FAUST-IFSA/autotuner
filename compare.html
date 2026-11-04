@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tuning comparison</title>
+    <style>
+      :root {
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        color: #e6e8eb;
+        background: #0f1115;
+        color-scheme: dark;
+      }
+      body {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 24px;
+      }
+      p {
+        color: #9aa1ab;
+        line-height: 1.5;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: #22252c;
+        border: 1px solid #30343d;
+        border-radius: 6px;
+        padding: 5px 12px;
+        cursor: pointer;
+      }
+      select {
+        font: inherit;
+        color: inherit;
+        background: #22252c;
+        border: 1px solid #30343d;
+        border-radius: 6px;
+        padding: 4px 8px;
+      }
+      button:hover {
+        background: #2a2e37;
+      }
+      button.active {
+        border-color: #3fbf86;
+        background: #17352a;
+      }
+      #status {
+        color: #e3b341;
+        font-variant-numeric: tabular-nums;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      td {
+        padding: 10px 8px;
+        border-top: 1px solid #30343d;
+        vertical-align: top;
+      }
+      td small {
+        display: block;
+        color: #7d8590;
+        margin-top: 2px;
+      }
+      a {
+        color: #5eb0ef;
+      }
+      .position {
+        font-variant-numeric: tabular-nums;
+        color: #9aa1ab;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tuning comparison</h1>
+    <p>
+      Dev only. The same passage, with the chosen edits, rendered several ways through the export renderer. Press 1 to 7
+      to switch while it plays (it keeps its place), Space to play or pause. The passage loops.
+    </p>
+    <p id="status">Loading…</p>
+    <div class="row">
+      <label
+        >Edits
+        <select id="edits"></select
+      ></label>
+    </div>
+    <div id="passages" class="row"></div>
+    <div class="row">
+      <label><input id="backing" type="checkbox" checked /> With backing track</label>
+      <label>Backing volume <input id="volume" type="range" min="0" max="1" step="0.01" value="0.5" /></label>
+      <span id="position" class="position"></span>
+    </div>
+    <p id="stats"></p>
+    <table id="variants"></table>
+    <script type="module" src="/src/dev/compare.ts"></script>
+  </body>
+</html>
