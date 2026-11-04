@@ -20,6 +20,7 @@ interface Props {
   onExported: (fileName: string) => void
   onAddBacking: () => void
   onBackingChange: (update: BackingSettingsUpdate) => void
+  onLineUp: () => void
   onRemoveBacking: () => void
   /** Covered by another screen: keyboard shortcuts are off. */
   suspended?: boolean
@@ -42,6 +43,7 @@ export function EditorScreen({
   onExported,
   onAddBacking,
   onBackingChange,
+  onLineUp,
   onRemoveBacking,
   suspended = false,
 }: Props) {
@@ -134,7 +136,9 @@ export function EditorScreen({
         {audioError && <span className="error">Playback isn't available: {audioError}</span>}
         <ControlsMenu />
       </header>
-      {backing && <BackingBar backing={backing} onChange={onBackingChange} onRemove={onRemoveBacking} />}
+      {backing && (
+        <BackingBar backing={backing} onChange={onBackingChange} onLineUp={onLineUp} onRemove={onRemoveBacking} />
+      )}
       <PitchEditor
         peaks={project.peaks}
         notes={notes}

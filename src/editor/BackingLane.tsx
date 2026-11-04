@@ -1,7 +1,7 @@
-import { Group, Rect, Shape, Text } from 'react-konva'
-import { peakRange } from '../audio/peaks'
+import { Group, Rect, Text } from 'react-konva'
 import type { BackingTrack } from '../types'
 import { BACKING_LANE_HEIGHT, KEYBOARD_WIDTH } from './layout'
+import { Waveform } from './Waveform'
 
 interface Props {
   backing: Pick<BackingTrack, 'buffer' | 'peaks' | 'offset' | 'muted'>
@@ -16,31 +16,25 @@ const PADDING = 6
 
 /** The backing track's waveform on the vocal's timeline. Display only: it can't be edited. */
 export function BackingLane({ backing, duration, pxPerSec, scrollX, width }: Props) {
-  const { buffer, peaks, offset, muted } = backing
   return (
-    <Shape
-      listening={false}
-      sceneFunc={(ctx) => {
-        ctx.setAttr('fillStyle', '#13161b')
-        ctx.fillRect(0, 0, width, BACKING_LANE_HEIGHT)
-
-        const mid = BACKING_LANE_HEIGHT / 2
-        const scale = (mid - PADDING) / peaks.peak
-        ctx.setAttr('fillStyle', muted ? 'rgba(94, 176, 239, 0.25)' : 'rgba(94, 176, 239, 0.7)')
-        for (let px = 0; px < width; px++) {
-          const t = (scrollX + px) / pxPerSec
-          if (t >= duration) break
-          const inBacking = t + offset
-          if (inBacking < 0 || inBacking >= buffer.duration) continue
-          const [lo, hi] = peakRange(peaks, inBacking, inBacking + 1 / pxPerSec)
-          const top = mid - hi * scale
-          ctx.fillRect(px, top, 1, Math.max(1, mid - lo * scale - top))
-        }
-
-        ctx.setAttr('fillStyle', '#30343d')
-        ctx.fillRect(0, BACKING_LANE_HEIGHT - 1, width, 1)
-      }}
-    />
+    <Group listening={false}>
+      <Rect width={width} height={BACKING_LANE_HEIGHT} fill="#13161b" />
+      <Group y={PADDING}>
+        <Waveform
+          peaks={backing.peaks}
+          duration={backing.buffer.duration}
+          viewStart={scrollX / pxPerSec}
+          // Vocal time 0 is `offset` into the backing track.
+          audioStart={-backing.offset}
+          until={duration}
+          pxPerSec={pxPerSec}
+          width={width}
+          height={BACKING_LANE_HEIGHT - 2 * PADDING}
+          color={backing.muted ? 'rgba(94, 176, 239, 0.25)' : 'rgba(94, 176, 239, 0.7)'}
+        />
+      </Group>
+      <Rect y={BACKING_LANE_HEIGHT - 1} width={width} height={1} fill="#30343d" />
+    </Group>
   )
 }
 

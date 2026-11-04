@@ -280,6 +280,66 @@ button:disabled {
   font-size: 14px;
 }
 
+.line-up-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: #0f1115;
+}
+
+.line-up-screen h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.line-up-screen .subtitle {
+  margin: 0 0 8px;
+  max-width: 640px;
+  text-align: center;
+}
+
+.line-up-tracks {
+  width: min(1200px, 100%);
+  border: 1px solid #30343d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.line-up-readout {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.line-up-controls,
+.nudges,
+.line-up-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.line-up-controls {
+  gap: 16px;
+}
+
+.nudges button {
+  font-variant-numeric: tabular-nums;
+}
+
+.line-up-hint {
+  margin: 0;
+  color: #7d8590;
+  font-size: 13px;
+  text-align: center;
+}
+
 .backing-bar {
   display: flex;
   align-items: center;

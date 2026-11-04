@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
+import { sameLength } from './audio/backing'
 import type { BackingSettingsUpdate } from './components/BackingBar'
 import { AddBackingScreen } from './screens/AddBackingScreen'
 import { BackingUploadScreen } from './screens/BackingUploadScreen'
 import { DownloadedScreen } from './screens/DownloadedScreen'
 import { EditorScreen } from './screens/EditorScreen'
+import { LineUpScreen } from './screens/LineUpScreen'
 import { deleteRecentBacking, saveRecentBacking, saveRecentEdits } from './storage/recent'
 import { UploadScreen } from './screens/UploadScreen'
 import type { BackingTrack, NoteSegment, Project } from './types'
 
 /**
- * Adding a backing track: asked once after a new upload, then its upload screen. Each is a full screen of its
- * own, covering the editor.
+ * Adding a backing track: asked once after a new upload, then its upload screen, then lining it up if the
+ * lengths differ. Each is a full screen of its own, covering the editor.
  */
-type BackingStep = 'ask' | 'upload'
+type BackingStep = 'ask' | 'upload' | 'lineUp'
 
 export default function App() {
   const [project, setProject] = useState<Project | null>(null)
@@ -56,7 +58,8 @@ export default function App() {
   const addBacking = (backing: BackingTrack) => {
     setProject((p) => p && { ...p, backing })
     void saveRecentBacking(project.id, backing)
-    setBackingStep(null)
+    // Files of the same length were exported together, so they already line up.
+    setBackingStep(sameLength(project.buffer.duration, backing.buffer.duration) ? null : 'lineUp')
   }
 
   const removeBacking = () => {
@@ -74,11 +77,23 @@ export default function App() {
         onExported={setSavedFile}
         onAddBacking={() => setBackingStep('upload')}
         onBackingChange={changeBacking}
+        onLineUp={() => setBackingStep('lineUp')}
         onRemoveBacking={removeBacking}
         suspended={savedFile !== null || backingStep !== null}
       />
       {backingStep === 'ask' && <AddBackingScreen onAdd={() => setBackingStep('upload')} onSkip={skipBacking} />}
       {backingStep === 'upload' && <BackingUploadScreen onLoaded={addBacking} onCancel={skipBacking} />}
+      {backingStep === 'lineUp' && project.backing && (
+        <LineUpScreen
+          vocal={project}
+          backing={project.backing}
+          onDone={(offset) => {
+            changeBacking({ offset })
+            setBackingStep(null)
+          }}
+          onCancel={skipBacking}
+        />
+      )}
       {savedFile && (
         <DownloadedScreen fileName={savedFile} onBack={() => setSavedFile(null)} onNewVocal={closeProject} />
       )}

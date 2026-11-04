@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backingGain, backingSpan } from './backing'
+import { backingGain, backingSpan, clampOffset, formatSongTime, lineUpRange, sameLength } from './backing'
 
 describe('backingSpan', () => {
   it('plays both from the same moment when they start together', () => {
@@ -32,5 +32,35 @@ describe('backingGain', () => {
     expect(backingGain({ volume: 0.8, muted: true })).toBe(0)
     expect(backingGain({ volume: 0.5, muted: false })).toBe(0.25)
     expect(backingGain({ volume: 1, muted: false })).toBe(1)
+  })
+})
+
+describe('lining up', () => {
+  it('treats files within 0.1 s of each other as the same length', () => {
+    expect(sameLength(180, 180.05)).toBe(true)
+    expect(sameLength(180, 180.2)).toBe(false)
+  })
+
+  it('spans the whole backing track and wherever the vocal can go', () => {
+    // A 60 s verse in a 3-minute song: margin 9 s either side.
+    expect(lineUpRange(60, 180)).toEqual({ start: -9, end: 189 })
+    // A vocal longer than the backing track can start before it.
+    expect(lineUpRange(200, 180)).toEqual({ start: -30, end: 210 })
+  })
+
+  it('keeps the vocal in view and overlapping the backing track', () => {
+    expect(clampOffset(30, 60, 180)).toBe(30)
+    expect(clampOffset(-50, 60, 180)).toBe(-9)
+    expect(clampOffset(500, 60, 180)).toBe(129)
+    // A 3 s clip near the end must still overlap the backing track by 0.5 s.
+    expect(clampOffset(185, 3, 180)).toBe(179.5)
+    expect(clampOffset(-20, 3, 180)).toBe(-2.5)
+  })
+
+  it('formats song time with hundredths', () => {
+    expect(formatSongTime(72.4)).toBe('1:12.40')
+    expect(formatSongTime(0)).toBe('0:00.00')
+    expect(formatSongTime(-1.2)).toBe('-0:01.20')
+    expect(formatSongTime(59.999)).toBe('1:00.00')
   })
 })

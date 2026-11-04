@@ -1,15 +1,16 @@
 import type { BackingTrack } from '../types'
 
-export type BackingSettingsUpdate = Partial<Pick<BackingTrack, 'volume' | 'muted'>>
+export type BackingSettingsUpdate = Partial<Pick<BackingTrack, 'offset' | 'volume' | 'muted'>>
 
 interface Props {
   backing: BackingTrack
   onChange: (update: BackingSettingsUpdate) => void
+  onLineUp: () => void
   onRemove: () => void
 }
 
 /** The backing track's controls, above its lane in the pitch editor. */
-export function BackingBar({ backing, onChange, onRemove }: Props) {
+export function BackingBar({ backing, onChange, onLineUp, onRemove }: Props) {
   return (
     <div className="backing-bar">
       <span className="backing-label">Backing track</span>
@@ -32,6 +33,9 @@ export function BackingBar({ backing, onChange, onRemove }: Props) {
           onPointerUp={(e) => e.currentTarget.blur()}
         />
       </label>
+      <button type="button" onClick={onLineUp}>
+        Line up
+      </button>
       <button type="button" onClick={onRemove}>
         Remove
       </button>

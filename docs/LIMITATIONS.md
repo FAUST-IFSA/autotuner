@@ -33,6 +33,7 @@ lives in the code. Reasoning and measurements are in [`DECISIONS.md`](DECISIONS.
 | **Only the 10 most recent files are kept**, in this browser's IndexedDB. Approximate (fallback) projects aren't saved, and storage errors are only logged. | Clearing site data loses the list. A failed save is silent. | `storage/recent.ts` |
 | **Zoom is limited to 5 to 2,000 px per second.** | Very long files can't be fully zoomed out to fit. | `editor/layout.ts` |
 | **The backing track is only heard under the vocal.** The editor's timeline is the vocal's. | Any part of the song before the vocal starts or after it ends isn't shown or played. | `audio/backing.ts` (`backingSpan`) |
+| **Lining up is by hand.** There's no automatic alignment, and the Line up view fits the whole song with no zoom. | On a long song one pixel is a fraction of a second, so precise placement relies on the 10 ms nudges and listening. | `screens/LineUpScreen.tsx` |
 | **A backing track roughly doubles a project's memory and storage.** It's decoded in full, and the original file is kept in recent files. | Two 10-minute files may not fit the browser's storage quota; a backing track that doesn't fit is left out of recent files with a console warning. | `audio/backing.ts`, `storage/recent.ts` |
 
 ## Engine
