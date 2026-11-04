@@ -1,12 +1,14 @@
 import type Konva from 'konva'
+import type { KonvaEventObject } from 'konva/lib/Node'
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { Group, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import { LineUpPlayer } from '../audio/LineUpPlayer'
 import { clampOffset, formatSongTime, lineUpRange, sameLength } from '../audio/backing'
 import { getAudioContext } from '../audio/decode'
-import { RULER_HEIGHT } from '../editor/layout'
+import { MAX_PX_PER_SEC, RULER_HEIGHT } from '../editor/layout'
 import { TimeRuler } from '../editor/TimeRuler'
 import { useElementSize } from '../editor/useElementSize'
+import { KEY_ZOOM_STEP, WHEEL_ZOOM_SPEED } from '../editor/usePanZoom'
 import { Waveform } from '../editor/Waveform'
 import type { BackingTrack, Project } from '../types'
 
@@ -25,7 +27,7 @@ const WAVE_PADDING = 8
 /** The playhead starts this long before the vocal comes in. */
 const PRE_ROLL = 2
 const NUDGES = [-0.1, -0.01, 0.01, 0.1]
-/** Arrow keys move the playhead this far (with Shift, five times as far). */
+/** < and > (or , and .) move the playhead this far. */
 const SEEK_STEP = 1
 
 /**
@@ -39,10 +41,31 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
   const [offset, setOffset] = useState(() => clampOffset(backing.offset, vocalDuration, backingDuration))
   const containerRef = useRef<HTMLDivElement>(null)
   const { width } = useElementSize(containerRef)
-  const pxPerSec = width / (range.end - range.start) || 1
-  const toX = (t: number) => (t - range.start) * pxPerSec
-  const toTime = (x: number) => range.start + x / pxPerSec
+  // Zoom and scroll work as in the editor. Until the user zooms, the whole song fits the view.
+  const fitPxPerSec = width / (range.end - range.start) || 1
+  const [zoom, setZoom] = useState<number | null>(null)
+  const pxPerSec = Math.min(MAX_PX_PER_SEC, Math.max(fitPxPerSec, zoom ?? fitPxPerSec))
+  const [scrollTo, setScroll] = useState(0)
+  // Stored offsets can be out of range (zooming, resizing); they're clamped only here, when drawn.
+  const scroll = Math.min(Math.max(0, (range.end - range.start) * pxPerSec - width), Math.max(0, scrollTo))
+  const toX = (t: number) => (t - range.start) * pxPerSec - scroll
+  const toTime = (x: number) => range.start + (x + scroll) / pxPerSec
   const clamp = (next: number) => clampOffset(next, vocalDuration, backingDuration)
+  /** The view follows the playhead page by page while playing, until the user scrolls or zooms. */
+  const following = useRef(true)
+  /** Zooms by `factor`, keeping the time under `anchorX` where it is. */
+  const zoomBy = (factor: number, anchorX: number) => {
+    following.current = false
+    const anchor = toTime(anchorX)
+    const next = Math.min(MAX_PX_PER_SEC, Math.max(fitPxPerSec, pxPerSec * factor))
+    setZoom(next)
+    setScroll((anchor - range.start) * next - anchorX)
+  }
+  /** Scrolls a page so song time `t` sits 10% into the view, if it's off screen. */
+  const reveal = (t: number) => {
+    const x = toX(t)
+    if (x < 0 || x > width * 0.95) setScroll((t - range.start) * pxPerSec - width * 0.1)
+  }
 
   const [player] = useState(
     () => new LineUpPlayer(getAudioContext(), vocal.buffer, backing.buffer, backing.volume ** 2),
@@ -57,6 +80,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
   useEffect(() => () => player.stop(), [player])
 
   const play = (from: number, at = offset) => {
+    following.current = true
     void player.play(from, at)
     setPlaying(true)
   }
@@ -70,6 +94,8 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
   const seekTo = (t: number) => {
     const clamped = Math.min(range.end, Math.max(range.start, t))
     setHead(clamped)
+    following.current = true
+    reveal(clamped)
     if (player.isPlaying) play(clamped)
   }
   /** Moves the vocal; playing restarts from the same spot so the change is heard straight away. */
@@ -79,8 +105,16 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
     if (player.isPlaying) play(player.position, clamped)
   }
 
-  // The playhead follows playback every frame, without re-rendering. At the end of both, playback stops and
-  // the playhead goes back to just before the vocal.
+  const drawHead = (t: number) => {
+    const line = playheadRef.current
+    if (!line) return
+    const x = toX(t)
+    line.visible(x >= 0 && x <= width)
+    line.x(x)
+    line.getLayer()?.batchDraw()
+  }
+  // The playhead follows playback every frame, without re-rendering (only turning a page does). At the end of
+  // both, playback stops and the playhead goes back to just before the vocal.
   const onFrame = useEffectEvent(() => {
     const t = player.position
     if (t >= Math.max(backingDuration, offset + vocalDuration)) {
@@ -89,17 +123,14 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
       setHead(beforeVocal(offset))
       return
     }
-    playheadRef.current?.x(toX(t))
-    playheadRef.current?.getLayer()?.batchDraw()
+    drawHead(t)
+    if (following.current) reveal(t)
   })
   // While stopped, the playhead sits at `head`.
-  const placeHead = useEffectEvent(() => {
-    playheadRef.current?.x(toX(head))
-    playheadRef.current?.getLayer()?.batchDraw()
-  })
+  const placeHead = useEffectEvent(() => drawHead(head))
   useLayoutEffect(() => {
     if (!playing) placeHead()
-  }, [playing, head, width])
+  }, [playing, head, width, pxPerSec, scroll])
   useEffect(() => {
     if (!playing) return
     let frame = requestAnimationFrame(function tick() {
@@ -111,16 +142,19 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
 
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (e.target instanceof HTMLButtonElement && (e.key === ' ' || e.key === 'Enter')) return
-    const direction = e.key === 'ArrowLeft' ? -1 : 1
+    const arrow = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
+    const mod = e.metaKey || e.ctrlKey
     if (e.key === ' ') {
       if (playing) pause()
       else play(head)
-    } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.altKey) {
-      // Option/Alt + arrows nudge the vocal.
-      moveTo(offset + direction * (e.shiftKey ? 0.1 : 0.01))
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      seekTo(position() + direction * SEEK_STEP * (e.shiftKey ? 5 : 1))
-    } else if (e.key === 'Enter') seekTo(beforeVocal(offset))
+    }
+    // As in the editor: Cmd/Ctrl + Right zooms in, Cmd/Ctrl + Left zooms out, around the middle.
+    else if (arrow && mod) zoomBy(arrow > 0 ? KEY_ZOOM_STEP : 1 / KEY_ZOOM_STEP, width / 2)
+    else if (arrow) moveTo(offset + arrow * (e.shiftKey ? 0.1 : 0.01))
+    // < and > move the playhead, as they do in the editor (also , and . so Shift isn't needed).
+    else if (!mod && (e.key === '<' || e.key === ',')) seekTo(position() - SEEK_STEP)
+    else if (!mod && (e.key === '>' || e.key === '.')) seekTo(position() + SEEK_STEP)
+    else if (e.key === 'Enter') seekTo(beforeVocal(offset))
     else if (e.key === 'Escape') onCancel()
     else return
     e.preventDefault()
@@ -130,10 +164,27 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  // Scrolling and pinching, as in the editor: Cmd/Ctrl + scroll (or a pinch) zooms around the pointer, and
+  // scrolling moves along the song (vertical scrolling too, since there's nothing else to scroll).
+  const onWheel = (e: KonvaEventObject<WheelEvent>) => {
+    e.evt.preventDefault()
+    following.current = false
+    const { deltaX, deltaY, ctrlKey, metaKey, shiftKey } = e.evt
+    if (ctrlKey || metaKey) {
+      zoomBy(Math.exp(-deltaY * WHEEL_ZOOM_SPEED), e.target.getStage()?.getPointerPosition()?.x ?? width / 2)
+      return
+    }
+    setScroll(scroll + (shiftKey || deltaX === 0 ? deltaY : deltaX))
+  }
+
   const setCursor = (cursor: string) => {
     if (containerRef.current) containerRef.current.style.cursor = cursor
   }
+  const clipX = toX(offset)
   const clipWidth = vocalDuration * pxPerSec
+  // Only the part of the vocal on screen is drawn: zoomed in, the clip can be far wider than the view.
+  const clipFrom = Math.max(0, -clipX)
+  const clipTo = Math.min(clipWidth, width - clipX)
 
   return (
     // Mouse clicks don't leave focus on buttons, so Space keeps meaning play/pause after a click.
@@ -151,7 +202,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
       </p>
       <div ref={containerRef} className="line-up-tracks">
         {width > 0 && (
-          <Stage width={width} height={STAGE_HEIGHT}>
+          <Stage width={width} height={STAGE_HEIGHT} onWheel={onWheel}>
             <Layer>
               {/* A click anywhere (ruler, lanes or the vocal) moves the playhead there. */}
               <Rect
@@ -160,14 +211,19 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
                 fill="#0f1115"
                 onClick={(e) => seekTo(toTime(e.target.getStage()!.getPointerPosition()!.x))}
               />
-              <TimeRuler duration={range.end} pxPerSec={pxPerSec} scrollX={range.start * pxPerSec} width={width} />
+              <TimeRuler
+                duration={range.end}
+                pxPerSec={pxPerSec}
+                scrollX={range.start * pxPerSec + scroll}
+                width={width}
+              />
               <Group y={RULER_HEIGHT} listening={false}>
                 <Rect x={toX(0)} width={backingDuration * pxPerSec} height={LANE_HEIGHT} fill="#151b23" />
                 <Group y={WAVE_PADDING}>
                   <Waveform
                     peaks={backing.peaks}
                     duration={backingDuration}
-                    viewStart={range.start}
+                    viewStart={toTime(0)}
                     audioStart={0}
                     pxPerSec={pxPerSec}
                     width={width}
@@ -175,10 +231,10 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
                     color="rgba(94, 176, 239, 0.7)"
                   />
                 </Group>
-                <Text x={toX(0) + 8} y={6} text="Backing track" fontSize={11} fill="#9aa1ab" />
+                <Text x={Math.max(0, toX(0)) + 8} y={6} text="Backing track" fontSize={11} fill="#9aa1ab" />
               </Group>
               <Group
-                x={toX(offset)}
+                x={clipX}
                 y={VOCAL_TOP}
                 draggable
                 dragBoundFunc={(pos) => ({ x: toX(clamp(toTime(pos.x))), y: VOCAL_TOP })}
@@ -208,23 +264,25 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
                   strokeWidth={1}
                   cornerRadius={6}
                 />
-                <Group y={WAVE_PADDING} listening={false}>
-                  <Waveform
-                    peaks={vocal.peaks}
-                    duration={vocalDuration}
-                    viewStart={0}
-                    audioStart={0}
-                    pxPerSec={pxPerSec}
-                    width={clipWidth}
-                    height={LANE_HEIGHT - 2 * WAVE_PADDING}
-                    color="rgba(63, 191, 134, 0.8)"
-                  />
-                </Group>
-                <Text x={8} y={6} text="Your vocal" fontSize={11} fill="#c9ced6" listening={false} />
+                {clipTo > clipFrom && (
+                  <Group x={clipFrom} y={WAVE_PADDING} listening={false}>
+                    <Waveform
+                      peaks={vocal.peaks}
+                      duration={vocalDuration}
+                      viewStart={clipFrom / pxPerSec}
+                      audioStart={0}
+                      pxPerSec={pxPerSec}
+                      width={clipTo - clipFrom}
+                      height={LANE_HEIGHT - 2 * WAVE_PADDING}
+                      color="rgba(63, 191, 134, 0.8)"
+                    />
+                  </Group>
+                )}
+                <Text x={clipFrom + 8} y={6} text="Your vocal" fontSize={11} fill="#c9ced6" listening={false} />
               </Group>
               {/* Where the vocal starts, across both lanes. */}
               <Line
-                points={[toX(offset), RULER_HEIGHT, toX(offset), STAGE_HEIGHT]}
+                points={[clipX, RULER_HEIGHT, clipX, STAGE_HEIGHT]}
                 stroke="#3fbf86"
                 strokeWidth={1}
                 dash={[3, 3]}
@@ -264,8 +322,9 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
         </button>
       </div>
       <p className="line-up-hint">
-        Click anywhere or use ← → to move the playhead (Shift: 5 s); Enter goes back to just before your vocal; Space
-        plays and pauses. Option/Alt + ← → nudges your vocal (Shift: 100 ms).
+        Click anywhere or press &lt; &gt; to move the playhead; Enter goes back to just before your vocal; Space plays
+        and pauses. ← → nudge your vocal (Shift: 100 ms). Cmd/Ctrl + scroll, a pinch, or Cmd/Ctrl + ← → zooms; scroll to
+        move along the song.
       </p>
       <div className="line-up-actions">
         <button type="button" onClick={onCancel}>

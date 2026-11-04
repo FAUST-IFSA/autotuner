@@ -9,10 +9,12 @@ Newest first. Each entry: what changed, why, and what it affects.
 A vocal is often only part of the song, so starting both together would put it in the wrong place. Of the two
 options (line them up, or only accept backing tracks the same length as the vocal) we chose lining up, kept to
 one move: the Line up screen shows the whole backing track with the vocal as a single clip under it. Drag the
-clip or nudge it by 10 or 100 ms (buttons, or Option/Alt + ← →, Shift for 100 ms). A playhead marks where
-playback starts: click anywhere or use ← → to move it (Shift for 5 s), Enter puts it just before the vocal, and
-Space plays and pauses. Done saves `offset`; Cancel keeps the old one. It's reached from "Line up" in the
-backing bar.
+clip or nudge it by 10 or 100 ms (buttons, or ← →, Shift for 100 ms). A playhead marks where playback
+starts: click anywhere or press < > (or , .) to move it by a second, as in the editor; Enter puts it just
+before the vocal, and Space plays and pauses. Zoom and scroll work as in the editor (Cmd/Ctrl + scroll or a
+pinch zooms around the pointer, Cmd/Ctrl + ← → zooms around the middle, scrolling moves along the song), and
+the view follows the playhead page by page until the user scrolls or zooms. Done saves `offset`; Cancel keeps
+the old one. It's reached from "Line up" in the backing bar.
 
 - **Always shown after a backing upload**, so the user confirms the placement before the editor opens. Files
   within 0.1 s of each other in length were almost certainly exported together from one session, so they start
@@ -20,6 +22,7 @@ backing bar.
 - **No automatic alignment.** An instrumental and a vocal share no audio, so there's nothing reliable to match.
   It could work for full mixes that still contain the vocal; not attempted.
 - **Line-up playback** is two plain buffer sources (`LineUpPlayer`), with no tuning: only timing matters here.
+- **Zoomed in, only what's on screen is drawn**: the vocal clip can be far wider than the view.
 - **Limits.** The vocal stays inside the view (the backing track plus a 5% margin) and overlaps the backing
   track by at least 0.5 s, so there's always something to hear together (`clampOffset`).
 
