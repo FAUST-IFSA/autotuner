@@ -19,10 +19,9 @@ interface Props {
   onCancel: () => void
 }
 
-const LANE_HEIGHT = 72
+/** The lanes share the height the screen gives the tracks (.line-up-tracks), but never get shorter than this. */
+const MIN_LANE_HEIGHT = 110
 const LANE_GAP = 8
-const VOCAL_TOP = RULER_HEIGHT + LANE_HEIGHT + LANE_GAP
-const STAGE_HEIGHT = VOCAL_TOP + LANE_HEIGHT
 const WAVE_PADDING = 8
 /** The playhead starts this long before the vocal comes in. */
 const PRE_ROLL = 2
@@ -40,7 +39,10 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
   const range = lineUpRange(vocalDuration, backingDuration)
   const [offset, setOffset] = useState(() => clampOffset(backing.offset, vocalDuration, backingDuration))
   const containerRef = useRef<HTMLDivElement>(null)
-  const { width } = useElementSize(containerRef)
+  const { width, height } = useElementSize(containerRef)
+  const laneHeight = Math.max(MIN_LANE_HEIGHT, Math.floor((height - RULER_HEIGHT - LANE_GAP) / 2))
+  const vocalTop = RULER_HEIGHT + laneHeight + LANE_GAP
+  const stageHeight = vocalTop + laneHeight
   // Zoom and scroll work as in the editor. Until the user zooms, the whole song fits the view.
   const fitPxPerSec = width / (range.end - range.start) || 1
   const [zoom, setZoom] = useState<number | null>(null)
@@ -202,12 +204,12 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
       </p>
       <div ref={containerRef} className="line-up-tracks">
         {width > 0 && (
-          <Stage width={width} height={STAGE_HEIGHT} onWheel={onWheel}>
+          <Stage width={width} height={stageHeight} onWheel={onWheel}>
             <Layer>
               {/* A click anywhere (ruler, lanes or the vocal) moves the playhead there. */}
               <Rect
                 width={width}
-                height={STAGE_HEIGHT}
+                height={stageHeight}
                 fill="#0f1115"
                 onClick={(e) => seekTo(toTime(e.target.getStage()!.getPointerPosition()!.x))}
               />
@@ -218,7 +220,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
                 width={width}
               />
               <Group y={RULER_HEIGHT} listening={false}>
-                <Rect x={toX(0)} width={backingDuration * pxPerSec} height={LANE_HEIGHT} fill="#151b23" />
+                <Rect x={toX(0)} width={backingDuration * pxPerSec} height={laneHeight} fill="#151b23" />
                 <Group y={WAVE_PADDING}>
                   <Waveform
                     peaks={backing.peaks}
@@ -227,7 +229,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
                     audioStart={0}
                     pxPerSec={pxPerSec}
                     width={width}
-                    height={LANE_HEIGHT - 2 * WAVE_PADDING}
+                    height={laneHeight - 2 * WAVE_PADDING}
                     color="rgba(94, 176, 239, 0.7)"
                   />
                 </Group>
@@ -235,9 +237,9 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
               </Group>
               <Group
                 x={clipX}
-                y={VOCAL_TOP}
+                y={vocalTop}
                 draggable
-                dragBoundFunc={(pos) => ({ x: toX(clamp(toTime(pos.x))), y: VOCAL_TOP })}
+                dragBoundFunc={(pos) => ({ x: toX(clamp(toTime(pos.x))), y: vocalTop })}
                 onMouseDown={() => {
                   dragged.current = false
                 }}
@@ -258,7 +260,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
               >
                 <Rect
                   width={clipWidth}
-                  height={LANE_HEIGHT}
+                  height={laneHeight}
                   fill="rgba(63, 191, 134, 0.16)"
                   stroke="#3fbf86"
                   strokeWidth={1}
@@ -273,7 +275,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
                       audioStart={0}
                       pxPerSec={pxPerSec}
                       width={clipTo - clipFrom}
-                      height={LANE_HEIGHT - 2 * WAVE_PADDING}
+                      height={laneHeight - 2 * WAVE_PADDING}
                       color="rgba(63, 191, 134, 0.8)"
                     />
                   </Group>
@@ -282,7 +284,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
               </Group>
               {/* Where the vocal starts, across both lanes. */}
               <Line
-                points={[clipX, RULER_HEIGHT, clipX, STAGE_HEIGHT]}
+                points={[clipX, RULER_HEIGHT, clipX, stageHeight]}
                 stroke="#3fbf86"
                 strokeWidth={1}
                 dash={[3, 3]}
@@ -290,7 +292,7 @@ export function LineUpScreen({ vocal, backing, onDone, onCancel }: Props) {
               />
             </Layer>
             <Layer listening={false}>
-              <Line ref={playheadRef} points={[0, 0, 0, STAGE_HEIGHT]} stroke="#7f9cf5" strokeWidth={2} />
+              <Line ref={playheadRef} points={[0, 0, 0, stageHeight]} stroke="#7f9cf5" strokeWidth={2} />
             </Layer>
           </Stage>
         )}

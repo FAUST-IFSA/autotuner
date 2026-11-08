@@ -284,6 +284,7 @@ button:disabled {
   position: fixed;
   inset: 0;
   z-index: 20;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -306,6 +307,10 @@ button:disabled {
 
 .line-up-tracks {
   width: min(1200px, 100%);
+  /* The two lanes take whatever height the rest of the screen leaves (LineUpScreen splits it between them). */
+  flex: 1 1 0;
+  min-height: 260px;
+  max-height: 560px;
   border: 1px solid #30343d;
   border-radius: 8px;
   overflow: hidden;
