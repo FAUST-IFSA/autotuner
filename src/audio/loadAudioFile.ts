@@ -51,7 +51,7 @@ export async function loadAudioFile(file: File, onProgress: (fraction: number) =
   if (buffer.duration > MAX_DURATION_SECONDS) {
     throw new Error(`"${file.name}" is longer than ${MAX_DURATION_SECONDS / 60} minutes.`)
   }
-  const { peaks, notes, f0, usedFallback } = await analyzeAudio(buffer, onProgress)
+  const { peaks, notes, f0, audible, usedFallback } = await analyzeAudio(buffer, onProgress)
   if (notes.length === 0) {
     throw new Error(`We couldn't find any singing in "${file.name}". Try a recording with a clear solo vocal.`)
   }
@@ -63,6 +63,7 @@ export async function loadAudioFile(file: File, onProgress: (fraction: number) =
     peaks,
     notes,
     f0,
+    audible,
     approximateNotes: usedFallback,
   }
 }

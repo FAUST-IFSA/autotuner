@@ -1,5 +1,5 @@
 import SignalsmithStretch from 'signalsmith-stretch'
-import type { NoteSegment } from '../types'
+import type { NoteSegment, TimeSpan } from '../types'
 import { copyChannels } from './channels'
 import { DEFAULT_PARAMS, type TuningParams } from './params'
 import { ShiftScheduler, buildSchedule } from './schedule'
@@ -29,10 +29,11 @@ export function resample(buffer: AudioBuffer, sampleRate: number): Promise<Audio
 export async function renderTuned(
   buffer: AudioBuffer,
   notes: NoteSegment[],
+  audible: TimeSpan[] = [],
   onProgress: (fraction: number) => void = () => {},
   params: TuningParams = DEFAULT_PARAMS,
 ): Promise<AudioBuffer> {
-  const schedule = buildSchedule(notes, params)
+  const schedule = buildSchedule(notes, audible, params)
   if (schedule.length === 1 && schedule[0].semitones === 0) {
     onProgress(1)
     return buffer

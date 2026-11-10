@@ -21,6 +21,12 @@ export interface NoteSegment {
   detectedMidi: number
 }
 
+/** Seconds. */
+export interface TimeSpan {
+  start: number
+  end: number
+}
+
 export interface F0Curve {
   /** Seconds between frames. */
   hopSec: number
@@ -40,6 +46,11 @@ export interface Project {
   peaks: Peaks
   notes: NoteSegment[]
   f0: F0Curve
+  /**
+   * Where the recording has any sound, voiced or not. Edited notes' shifts carry through the sound between
+   * notes that wasn't detected as notes; see `buildSchedule`.
+   */
+  audible: TimeSpan[]
   /** Basic Pitch failed, so the notes came from the rough loudness fallback (shown as a notice, not saved). */
   approximateNotes?: boolean
 }

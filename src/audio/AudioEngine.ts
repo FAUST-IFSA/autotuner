@@ -1,5 +1,5 @@
 import SignalsmithStretch, { type StretchNode } from 'signalsmith-stretch'
-import type { NoteSegment } from '../types'
+import type { NoteSegment, TimeSpan } from '../types'
 import { copyChannels } from './channels'
 import { shiftOf } from './music'
 import { ShiftScheduler, type ShiftChange, type TimedChange, buildSchedule, shiftAt } from './schedule'
@@ -166,8 +166,8 @@ export class AudioEngine {
   }
 
   /** Call whenever notes change; playback picks up the new shifts within ~60 ms. */
-  setNotes(notes: NoteSegment[]) {
-    this.schedule = buildSchedule(notes)
+  setNotes(notes: NoteSegment[], audible: TimeSpan[] = []) {
+    this.schedule = buildSchedule(notes, audible)
     if (!this.playing) return
     // Re-plan from the earliest moment the node can still change: now plus its output latency.
     const at = this.ctx.currentTime + this.outputLatency + 0.005

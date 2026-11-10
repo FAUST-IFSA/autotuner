@@ -67,7 +67,7 @@ export async function exportTuned(
   // MP3 only supports the standard MPEG rates (up to 48 kHz); WAV keeps the file's own rate.
   const mp3Rate = mp3SampleRateFor(source.sampleRate)
   if (format === 'mp3' && mp3Rate !== source.sampleRate) source = await resample(source, mp3Rate)
-  const rendered = await renderTuned(source, project.notes, render)
+  const rendered = await renderTuned(source, project.notes, project.audible, render)
   const channels = copyChannels(rendered)
   const blob =
     format === 'wav'

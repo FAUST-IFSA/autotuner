@@ -1,6 +1,6 @@
 import type { GraphModel } from '@tensorflow/tfjs'
-import type { F0Curve, NoteSegment } from '../types'
-import { ANALYSIS_SAMPLE_RATE, computeF0, curveForDisplay } from './f0'
+import type { F0Curve, NoteSegment, TimeSpan } from '../types'
+import { ANALYSIS_SAMPLE_RATE, audibleRuns, computeF0, curveForDisplay } from './f0'
 import { notesFromRaw, numberNotes, runBasicPitch, toSegments } from './notes'
 import { DEFAULT_PARAMS, type TuningParams } from './params'
 import { detectSegments } from './segments'
@@ -8,6 +8,8 @@ import { detectSegments } from './segments'
 export interface PitchAnalysis {
   notes: NoteSegment[]
   f0: F0Curve
+  /** Where there is any sound; see `audibleRuns`. */
+  audible: TimeSpan[]
   /** True when Basic Pitch failed and notes came from the loudness segmenter instead. */
   usedFallback: boolean
 }
@@ -32,12 +34,12 @@ export async function analyzePitch(
     const raw = await runBasicPitch(samples, model, (p) => onProgress(F0_SHARE + p * (1 - F0_SHARE)), params)
     onProgress(1)
     const notes = notesFromRaw(raw, f0, params)
-    return { notes, f0: curveForDisplay(f0, notes), usedFallback: false }
+    return { notes, f0: curveForDisplay(f0, notes), audible: audibleRuns(samples), usedFallback: false }
   } catch (err) {
     console.error('Basic Pitch failed, falling back to loudness segments', err)
     const spans = detectSegments(samples, ANALYSIS_SAMPLE_RATE).map(({ start, end }) => ({ start, end }))
     onProgress(1)
     const notes = numberNotes(toSegments(spans, f0))
-    return { notes, f0: curveForDisplay(f0, notes), usedFallback: true }
+    return { notes, f0: curveForDisplay(f0, notes), audible: audibleRuns(samples), usedFallback: true }
   }
 }
