@@ -254,6 +254,152 @@ button:disabled {
   gap: 12px;
 }
 
+/* Adding a backing track: its own screens (the question, then the upload screen again), covering the editor. */
+.backing-upload-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #0f1115;
+}
+
+.backing-upload-screen .subtitle {
+  max-width: 560px;
+  text-align: center;
+}
+
+.add-backing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.backing-note {
+  margin: 8px 0;
+  color: #7d8590;
+  font-size: 14px;
+}
+
+.line-up-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: #0f1115;
+}
+
+.line-up-screen h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.line-up-screen .subtitle {
+  margin: 0 0 8px;
+  max-width: 640px;
+  text-align: center;
+}
+
+.line-up-tracks {
+  width: min(1200px, 100%);
+  /* The two lanes take whatever height the rest of the screen leaves (LineUpScreen splits it between them). */
+  flex: 1 1 0;
+  min-height: 260px;
+  max-height: 560px;
+  border: 1px solid #30343d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.line-up-readout {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.line-up-controls,
+.nudges,
+.line-up-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.line-up-controls {
+  gap: 16px;
+}
+
+.nudges button {
+  font-variant-numeric: tabular-nums;
+}
+
+.line-up-hint {
+  margin: 0;
+  color: #7d8590;
+  font-size: 13px;
+  text-align: center;
+}
+
+.backing-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid #30343d;
+  font-size: 13px;
+}
+
+.backing-label {
+  color: #5eb0ef;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.backing-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa1ab;
+}
+
+.backing-bar button {
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.key-badge {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid #2f4a63;
+  border-radius: 999px;
+  background: #15202b;
+  color: #9aa1ab;
+  white-space: nowrap;
+}
+
+.key-badge strong {
+  margin-left: 4px;
+  color: #e6e8eb;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #9aa1ab;
+}
+
+.volume input {
+  width: 110px;
+  accent-color: #5eb0ef;
+}
+
 .pitch-editor {
   flex: 1;
   min-height: 0;

@@ -4,3 +4,23 @@ export function copyChannels(buffer: AudioBuffer, from = 0, to = buffer.duration
   const b = Math.min(buffer.length, Math.ceil(to * buffer.sampleRate))
   return Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c).slice(a, b))
 }
+
+export function mixToMono(buffer: AudioBuffer): Float32Array {
+  const mono = new Float32Array(buffer.length)
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const channel = buffer.getChannelData(c)
+    for (let i = 0; i < channel.length; i++) mono[i] += channel[i] / buffer.numberOfChannels
+  }
+  return mono
+}
+
+/** Mono at `sampleRate`; the OfflineAudioContext handles downmix and resampling. */
+export async function resampleMono(buffer: AudioBuffer, sampleRate: number): Promise<Float32Array> {
+  const length = Math.ceil(buffer.duration * sampleRate)
+  const ctx = new OfflineAudioContext(1, length, sampleRate)
+  const source = ctx.createBufferSource()
+  source.buffer = buffer
+  source.connect(ctx.destination)
+  source.start()
+  return (await ctx.startRendering()).getChannelData(0)
+}

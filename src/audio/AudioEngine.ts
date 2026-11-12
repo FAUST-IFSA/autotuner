@@ -1,5 +1,6 @@
 import SignalsmithStretch, { type StretchNode } from 'signalsmith-stretch'
 import type { NoteSegment, TimeSpan } from '../types'
+import { backingSpan } from './backing'
 import { copyChannels } from './channels'
 import { shiftOf } from './music'
 import { ShiftScheduler, type ShiftChange, type TimedChange, buildSchedule, shiftAt } from './schedule'
@@ -25,6 +26,18 @@ interface Voices {
   previewGain: GainNode
   outputLatency: number
   previewOutputLatency: number
+}
+
+/** The backing track and where the vocal starts in it (see BackingTrack). */
+export interface BackingPlacement {
+  buffer: AudioBuffer
+  offset: number
+}
+
+/** One run of the backing track: a one-shot source behind its own fade. */
+interface BackingVoice {
+  source: AudioBufferSourceNode
+  fade: GainNode
 }
 
 /**
@@ -65,7 +78,8 @@ function releaseVoices(ctx: AudioContext, voices: Voices) {
 /**
  * Plays the original recording through Signalsmith Stretch with each note's pitch shift applied, and
  * previews a single note while it is dragged. Everything runs in an AudioWorklet; nothing is rendered
- * ahead of time.
+ * ahead of time. A backing track, if there is one, plays alongside untouched: a plain buffer source started
+ * on the same context clock as the vocal, so the two stay locked together.
  */
 export class AudioEngine {
   private schedule: ShiftChange[] = [{ t: 0, semitones: 0 }]
@@ -87,6 +101,8 @@ export class AudioEngine {
   private disposed = false
   private readonly listeners = new Set<(event: PlaybackEvent) => void>()
   private voices: Voices | null = null
+  private backing: BackingPlacement | null = null
+  private backingVoice: BackingVoice | null = null
   private previewOutputLatency = 0.02
   private readonly ctx: AudioContext
   private readonly buffer: AudioBuffer
@@ -95,6 +111,8 @@ export class AudioEngine {
   private readonly previewer: StretchNode
   private readonly previewGain: GainNode
   private readonly outputLatency: number
+  /** Backing track volume; each run's fade feeds it. */
+  private readonly backingGain: GainNode
 
   private constructor(
     ctx: AudioContext,
@@ -112,6 +130,8 @@ export class AudioEngine {
     this.previewer = previewer
     this.previewGain = previewGain
     this.outputLatency = outputLatency
+    this.backingGain = new GainNode(ctx, { gain: 1 })
+    this.backingGain.connect(ctx.destination)
     this.scheduler = new ShiftScheduler((change, outputTime) => {
       void player.schedule({
         output: change.output,
@@ -165,6 +185,21 @@ export class AudioEngine {
     }
   }
 
+  /** Sets or clears the backing track; playback in progress picks it up straight away. */
+  setBacking(backing: BackingPlacement | null) {
+    if (backing?.buffer === this.backing?.buffer && backing?.offset === this.backing?.offset) return
+    this.backing = backing
+    if (!this.playing) return
+    const now = this.ctx.currentTime
+    this.stopBacking(now)
+    this.startBacking(Math.max(now + 0.03, this.startOutput))
+  }
+
+  /** Backing track gain (0 = silent). */
+  setBackingVolume(gain: number) {
+    this.backingGain.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.01)
+  }
+
   /** Call whenever notes change; playback picks up the new shifts within ~60 ms. */
   setNotes(notes: NoteSegment[], audible: TimeSpan[] = []) {
     this.schedule = buildSchedule(notes, audible)
@@ -201,6 +236,7 @@ export class AudioEngine {
     gain.linearRampToValueAtTime(1, this.startOutput + FADE_SECONDS)
     this.scheduler.reset(this.timedChanges(), this.startOutput)
     this.scheduler.tick(this.ctx.currentTime)
+    this.startBacking(this.startOutput)
     this.playing = true
     // Worklet time reports keep the scheduler fed; this timer covers the end of the file and hidden tabs.
     this.ticker = window.setInterval(() => this.tick(), 50)
@@ -351,6 +387,7 @@ export class AudioEngine {
     window.clearTimeout(this.previewEndTimer)
     this.fadeOutPreview(this.ctx.currentTime)
     if (this.voices) releaseVoices(this.ctx, this.voices)
+    window.setTimeout(() => this.backingGain.disconnect(), 100)
   }
 
   private halt() {
@@ -363,6 +400,38 @@ export class AudioEngine {
     gain.linearRampToValueAtTime(0, now + FADE_SECONDS)
     this.scheduler.reset([], now)
     void this.player.stop(now + FADE_SECONDS + 0.01)
+    this.stopBacking(now)
+  }
+
+  /**
+   * Starts the backing track at context time `at` (no earlier than the vocal's start), lined up with the
+   * vocal position heard then.
+   */
+  private startBacking(at: number) {
+    if (!this.backing) return
+    const { buffer, offset } = this.backing
+    const span = backingSpan(this.from + (at - this.startOutput), offset, this.buffer.duration, buffer.duration)
+    if (!span) return
+    const source = new AudioBufferSourceNode(this.ctx, { buffer })
+    const fade = new GainNode(this.ctx, { gain: 0 })
+    source.connect(fade).connect(this.backingGain)
+    const when = at + span.delay
+    source.start(when, span.start, span.duration)
+    fade.gain.setValueAtTime(0, when)
+    fade.gain.linearRampToValueAtTime(1, when + FADE_SECONDS)
+    source.onended = () => fade.disconnect()
+    this.backingVoice = { source, fade }
+  }
+
+  private stopBacking(now: number) {
+    const voice = this.backingVoice
+    if (!voice) return
+    this.backingVoice = null
+    const gain = voice.fade.gain
+    gain.cancelScheduledValues(0)
+    gain.setValueAtTime(gain.value, now)
+    gain.linearRampToValueAtTime(0, now + FADE_SECONDS)
+    voice.source.stop(now + FADE_SECONDS + 0.01)
   }
 
   /** Schedule changes after the playback start, on the context clock, plus a stop at the end. */
