@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { NoteSegment } from '../types'
-import { GRID_HEIGHT, KEYBOARD_WIDTH, MAX_PX_PER_SEC, MIN_PX_PER_SEC, RULER_HEIGHT, clamp, pitchToY } from './layout'
+import { GRID_HEIGHT, KEYBOARD_WIDTH, MAX_PX_PER_SEC, MIN_PX_PER_SEC, clamp, pitchToY } from './layout'
 
 export interface Viewport {
   viewWidth: number
@@ -17,10 +17,15 @@ export interface Viewport {
 }
 
 /**
- * Zoom and scroll for an editor of `size`: until the user zooms, the whole file fits the view; until they
- * scroll vertically, it is centred on the sung range.
+ * Zoom and scroll for an editor of `size` whose pitch grid starts `gridTop` px down: until the user zooms,
+ * the whole file fits the view; until they scroll vertically, it is centred on the sung range.
  */
-export function useViewport(size: { width: number; height: number }, duration: number, notes: NoteSegment[]): Viewport {
+export function useViewport(
+  size: { width: number; height: number },
+  gridTop: number,
+  duration: number,
+  notes: NoteSegment[],
+): Viewport {
   // null means "not touched yet": fit the whole file and centre on the sung range.
   const [zoom, setZoom] = useState<number | null>(null)
   const [scrollX, setScrollX] = useState(0)
@@ -33,7 +38,7 @@ export function useViewport(size: { width: number; height: number }, duration: n
   })
 
   const viewWidth = Math.max(0, size.width - KEYBOARD_WIDTH)
-  const gridHeight = Math.max(0, size.height - RULER_HEIGHT)
+  const gridHeight = Math.max(0, size.height - gridTop)
   const pxPerSec = zoom ?? clamp(viewWidth / duration, MIN_PX_PER_SEC, MAX_PX_PER_SEC)
   const maxScrollX = Math.max(0, duration * pxPerSec - viewWidth)
   const maxScrollY = Math.max(0, GRID_HEIGHT - gridHeight)

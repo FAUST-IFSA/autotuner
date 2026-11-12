@@ -28,10 +28,13 @@ lives in the code. Reasoning and measurements are in [`DECISIONS.md`](DECISIONS.
 
 | Limitation | Effect | Where |
 | --- | --- | --- |
-| **Uploads are one file, up to 100 MB.** | Larger files and batches are rejected. Whole files are decoded in memory. | `UploadScreen.tsx` (`MAX_FILE_BYTES`) |
+| **Uploads are one file, up to 400 MB.** | Larger files and batches are rejected. Whole files are decoded in memory. | `UploadScreen.tsx` (`MAX_FILE_BYTES`) |
 | **Undo history holds 100 edits.** | Older edits can't be undone. | `editor/edits.ts` (`MAX_HISTORY`) |
 | **Only the 10 most recent files are kept**, in this browser's IndexedDB. Approximate (fallback) projects aren't saved, and storage errors are only logged. | Clearing site data loses the list. A failed save is silent. | `storage/recent.ts` |
 | **Zoom is limited to 5 to 2,000 px per second.** | Very long files can't be fully zoomed out to fit. | `editor/layout.ts` |
+| **The backing track is only heard under the vocal.** The editor's timeline is the vocal's. | Any part of the song before the vocal starts or after it ends isn't shown or played. | `audio/backing.ts` (`backingSpan`) |
+| **Lining up is by hand.** There's no automatic alignment. | Placement relies on dragging (zoomed in for precision), the 10 ms nudges and listening. | `screens/LineUpScreen.tsx` |
+| **A backing track roughly doubles a project's memory and storage.** It's decoded in full, and the original file is kept in recent files. | Two 10-minute files may not fit the browser's storage quota; a backing track that doesn't fit is left out of recent files with a console warning. | `audio/backing.ts`, `storage/recent.ts` |
 
 ## Engine
 

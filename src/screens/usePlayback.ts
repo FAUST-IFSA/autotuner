@@ -1,13 +1,20 @@
 import { useCallback, useEffect } from 'react'
 import type { AudioEngine } from '../audio/AudioEngine'
-import type { NoteSegment, TimeSpan } from '../types'
+import { backingGain } from '../audio/backing'
+import type { BackingTrack, NoteSegment, TimeSpan } from '../types'
 
 /**
- * The editor's side of the audio engine: keeps it playing the current notes (and quiet while the editor
- * is covered), and turns transport buttons, shortcuts and note grabs into engine calls. Every action
- * does nothing while there is no engine.
+ * The editor's side of the audio engine: keeps it playing the current notes and backing track (and quiet
+ * while the editor is covered), and turns transport buttons, shortcuts and note grabs into engine calls.
+ * Every action does nothing while there is no engine.
  */
-export function usePlayback(engine: AudioEngine | null, notes: NoteSegment[], audible: TimeSpan[], suspended: boolean) {
+export function usePlayback(
+  engine: AudioEngine | null,
+  notes: NoteSegment[],
+  audible: TimeSpan[],
+  backing: BackingTrack | undefined,
+  suspended: boolean,
+) {
   // Covered by the Downloaded screen: stop the sound.
   useEffect(() => {
     if (suspended) engine?.pause()
@@ -15,6 +22,15 @@ export function usePlayback(engine: AudioEngine | null, notes: NoteSegment[], au
 
   // Playback follows edits as they happen, including mid-drag.
   useEffect(() => engine?.setNotes(notes, audible), [engine, notes, audible])
+
+  const backingBuffer = backing?.buffer
+  const backingOffset = backing?.offset ?? 0
+  const gain = backing ? backingGain(backing) : 0
+  useEffect(
+    () => engine?.setBacking(backingBuffer ? { buffer: backingBuffer, offset: backingOffset } : null),
+    [engine, backingBuffer, backingOffset],
+  )
+  useEffect(() => engine?.setBackingVolume(gain), [engine, gain])
 
   const togglePlay = useCallback(() => {
     if (!engine) return

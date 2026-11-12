@@ -2,6 +2,53 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-11-04
+
+### Lining up a vocal with its backing track
+
+A vocal is often only part of the song, so starting both together would put it in the wrong place. Of the two
+options (line them up, or only accept backing tracks the same length as the vocal) we chose lining up, kept to
+one move: the Line up screen shows the whole backing track with the vocal as a single clip under it. Drag the
+clip or nudge it by 10 or 100 ms (buttons, or ← →, Shift for 100 ms). A playhead marks where playback
+starts: click anywhere or press < > (or , .) to move it by a second, as in the editor; Enter puts it just
+before the vocal, and Space plays and pauses. Zoom and scroll work as in the editor (Cmd/Ctrl + scroll or a
+pinch zooms around the pointer, Cmd/Ctrl + ← → zooms around the middle, scrolling moves along the song), and
+the view follows the playhead page by page until the user scrolls or zooms. Done saves `offset`; Cancel keeps
+the old one. It's reached from "Line up" in the backing bar.
+
+- **Always shown after a backing upload**, so the user confirms the placement before the editor opens. Files
+  within 0.1 s of each other in length were almost certainly exported together from one session, so they start
+  together and the screen says so (`sameLength`).
+- **No automatic alignment.** An instrumental and a vocal share no audio, so there's nothing reliable to match.
+  It could work for full mixes that still contain the vocal; not attempted.
+- **Line-up playback** is two plain buffer sources (`LineUpPlayer`), with no tuning: only timing matters here.
+- **Zoomed in, only what's on screen is drawn**: the vocal clip can be far wider than the view.
+- **Limits.** The vocal stays inside the view (the backing track plus a 5% margin) and overlaps the backing
+  track by at least 0.5 s, so there's always something to hear together (`clampOffset`).
+
+### Backing track, for reference only
+
+A client request: let the singer hear their vocal against the song while tuning. After a new vocal is analysed
+a screen of its own asks "Add a backing track?"; yes opens the upload screen again (same dropzone and limits,
+no recent files). Both are full screens covering the editor, which stays mounted underneath so its engine and
+undo history survive. "Add
+backing track" in the editor header opens the same screen later, and Remove takes it away again.
+
+- **Playback.** The backing track doesn't go through Signalsmith. It's a plain `AudioBufferSourceNode`, one
+  per play, started at the same context time the vocal is scheduled to be heard (`startOutput`), behind its
+  own fade and a volume gain. Pause, seek, the end of the vocal and the drag preview stop it with the vocal.
+  Measured by recording both outputs with a copy of the vocal as the backing track: the backing lands within
+  1 ms of the vocal from a fresh start, and within 4 ms after seeks (the stretcher's block timing).
+- **Timeline.** The editor keeps the vocal's timeline. `BackingTrack.offset` says where the vocal starts in
+  the backing track (set on the Line up screen, above), and only the part under the vocal is
+  shown and played (`backingSpan`). Notes, the ruler, zoom and export are unchanged.
+- **Export** reads only the vocal file and its notes (`exportTuned`), so the backing track can't reach it.
+- **Volume** is a 0 to 1 slider applied squared, so it feels even; it starts at 0.8 because backing tracks are
+  usually mastered louder than a raw vocal.
+- **Recent files** keep the backing file under its own key, written once, and its settings (offset, volume,
+  mute) next to the edits. Reopening decodes it again; a backing track that fails to load is left out rather
+  than failing the project.
+
 ## 2026-11-03 (shifts follow the sound between notes)
 
 After gap bridging, a shifted talking vocal (`bside_intro`) still had syllables at the original pitch, all in
@@ -35,6 +82,30 @@ reaches that point, and two edited neighbours switch directly from one shift to 
 
 The 300 ms limit is a first guess, not tuned by ear. Audio that was never detected as a note at all (long
 unvoiced stretches inside a phrase) is still unshifted; that needs the F0 curve, or a range-level shift.
+
+## 2026-10-28
+
+### Upload limit raised from 100 MB to 400 MB
+
+Memory follows a file's duration, not its size: every file is decoded to 32-bit float audio at the playback
+rate, so 10 minutes of stereo costs about the same whether it arrived as a 10 MB MP3 or a 300 MB WAV. The
+100 MB cap rejected legitimate files inside the 10-minute limit (10 minutes of 44.1 kHz/16-bit stereo WAV is
+106 MB; 48 kHz/24-bit is 173 MB). 400 MB fits 10 minutes of 96 kHz/24-bit stereo (346 MB). The 10-minute
+limit stays the real memory guard; the byte cap only stops a huge file from being read in at all.
+
+Verified in the dev browser (Chromium) with a 9:50, 96 kHz/24-bit stereo WAV (339.8 MB):
+- A 401 MB file is refused with "Please drop a single audio file under 400 MB."
+- Load and analysis: about 170 s to the editor (analysis reached 100% at about 130 s), 1,936 notes. The pane
+  was hidden during the run, so times are rough.
+- Tune Up (1,384 notes changed), playback and both exports work. The WAV is 96 kHz/24-bit, 590 s, 339.8 MB
+  (63 s to export); the MP3 is 48 kHz, 192 kbps, 590 s, 14.2 MB (68 s).
+- Recent files saved the 340 MB original with its edits, and reopening it took 10 s.
+- Peak renderer memory was about 1.26 GB (finishing the load), 1.18 GB (WAV export). The test also held an
+  extra in-memory copy of the file, so a real drop peaks somewhat lower.
+- Browser storage quota depends on free disk: on a Mac with about 9 GB free it was 1.7 GB, so only a few
+  files this size fit in recent files. A save that doesn't fit is skipped with a console warning.
+
+Not tested: Safari.
 
 ## 2026-10-21 (architecture review)
 

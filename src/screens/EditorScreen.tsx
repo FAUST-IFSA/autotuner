@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useAudioEngine } from '../audio/useAudioEngine'
+import { BackingBar, type BackingSettingsUpdate } from '../components/BackingBar'
 import { ControlsMenu } from '../components/ControlsMenu'
 import { ExportBar } from '../components/ExportBar'
 import { Transport } from '../components/Transport'
@@ -17,6 +18,10 @@ interface Props {
   onNotesChange: (update: (notes: NoteSegment[]) => NoteSegment[]) => void
   onReset: () => void
   onExported: (fileName: string) => void
+  onAddBacking: () => void
+  onBackingChange: (update: BackingSettingsUpdate) => void
+  onLineUp: () => void
+  onRemoveBacking: () => void
   /** Covered by another screen: keyboard shortcuts are off. */
   suspended?: boolean
 }
@@ -31,8 +36,18 @@ function tuneUpTitle(offPitchCount: number) {
   return `Move ${offPitchCount} off-pitch ${offPitchCount === 1 ? 'note' : 'notes'} to the nearest semitone`
 }
 
-export function EditorScreen({ project, onNotesChange, onReset, onExported, suspended = false }: Props) {
-  const { notes } = project
+export function EditorScreen({
+  project,
+  onNotesChange,
+  onReset,
+  onExported,
+  onAddBacking,
+  onBackingChange,
+  onLineUp,
+  onRemoveBacking,
+  suspended = false,
+}: Props) {
+  const { notes, backing } = project
   const [selection, setSelection] = useState<Set<string>>(() => new Set())
   const [snap, setSnap] = useState(true)
   const { preview, commit, apply, step, canUndo, canRedo } = useEditHistory(onNotesChange, setSelection)
@@ -41,6 +56,7 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
     engine,
     notes,
     project.audible,
+    backing,
     suspended,
   )
   useEditorShortcuts({
@@ -83,6 +99,11 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
           {project.buffer.duration.toFixed(1)}s · {notes.length} notes
           {selection.size > 0 && ` · ${selection.size} selected`}
         </span>
+        {!backing && (
+          <button type="button" onClick={onAddBacking}>
+            Add backing track
+          </button>
+        )}
         {project.approximateNotes && (
           <span className="notice" role="status">
             Note detection was unavailable, so these notes are approximate. Reload and try again.
@@ -115,12 +136,16 @@ export function EditorScreen({ project, onNotesChange, onReset, onExported, susp
         {audioError && <span className="error">Playback isn't available: {audioError}</span>}
         <ControlsMenu />
       </header>
+      {backing && (
+        <BackingBar backing={backing} onChange={onBackingChange} onLineUp={onLineUp} onRemove={onRemoveBacking} />
+      )}
       <PitchEditor
         peaks={project.peaks}
         notes={notes}
         f0={project.f0}
         audible={project.audible}
         duration={project.buffer.duration}
+        backing={backing}
         selection={selection}
         snap={snap}
         onSelectionChange={setSelection}

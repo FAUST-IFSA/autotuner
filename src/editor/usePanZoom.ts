@@ -4,9 +4,9 @@ import { KEYBOARD_WIDTH } from './layout'
 import type { Viewport } from './useViewport'
 
 /** Ctrl/Cmd + scroll zoom per unit of wheel delta (was 0.002, which felt slow). */
-const WHEEL_ZOOM_SPEED = 0.004
+export const WHEEL_ZOOM_SPEED = 0.004
 /** Cmd/Ctrl + arrow zoom per press. */
-const KEY_ZOOM_STEP = 1.5
+export const KEY_ZOOM_STEP = 1.5
 
 /**
  * The user moving the view: wheel and trackpad scrolling and pinching, and Cmd/Ctrl + Left/Right. Each
