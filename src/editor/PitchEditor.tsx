@@ -2,10 +2,11 @@ import { useMemo, useRef } from 'react'
 import { Group, Layer, Rect, Stage } from 'react-konva'
 import type { AudioEngine } from '../audio/AudioEngine'
 import { buildSchedule } from '../audio/schedule'
-import type { F0Curve as Curve, NoteSegment, Peaks, TimeSpan } from '../types'
+import type { BackingTrack, F0Curve as Curve, NoteSegment, Peaks, TimeSpan } from '../types'
+import { BackingLane, BackingLaneLabel } from './BackingLane'
 import type { Edit } from './edits'
 import { F0Curve } from './F0Curve'
-import { KEYBOARD_WIDTH, RULER_HEIGHT } from './layout'
+import { BACKING_LANE_HEIGHT, KEYBOARD_WIDTH, RULER_HEIGHT } from './layout'
 import { NoteBlob } from './NoteBlob'
 import { Playhead } from './Playhead'
 import { Keyboard, PitchGrid } from './PitchGrid'
@@ -24,6 +25,8 @@ interface Props {
   /** Sound between notes, which edited notes' shifts carry through. */
   audible: TimeSpan[]
   duration: number
+  /** Drawn as a waveform lane above the pitch grid. */
+  backing?: BackingTrack
   selection: Set<string>
   snap: boolean
   onSelectionChange: (selection: Set<string>) => void
@@ -62,6 +65,7 @@ export function PitchEditor({
   f0,
   audible,
   duration,
+  backing,
   selection,
   snap,
   onSelectionChange,
@@ -77,7 +81,8 @@ export function PitchEditor({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const size = useElementSize(containerRef)
-  const view = useViewport(size, duration, notes)
+  const gridTop = RULER_HEIGHT + (backing ? BACKING_LANE_HEIGHT : 0)
+  const view = useViewport(size, gridTop, duration, notes)
   const { viewWidth, gridHeight, pxPerSec, sx, sy } = view
   useRevealSelection(selection, notes, view)
   const { lineRef, stopFollowing } = usePlayhead({
@@ -91,6 +96,7 @@ export function PitchEditor({
   const handleWheel = usePanZoom(view, stopFollowing, shortcutsEnabled)
   const { hovered, marquee, cursor, pointerHandlers } = useNoteGestures({
     containerRef,
+    gridTop,
     notes,
     selection,
     snap,
@@ -132,14 +138,30 @@ export function PitchEditor({
             <Group x={KEYBOARD_WIDTH} clipX={0} clipY={0} clipWidth={viewWidth} clipHeight={RULER_HEIGHT}>
               <TimeRuler duration={duration} pxPerSec={pxPerSec} scrollX={sx} width={viewWidth} />
             </Group>
-            <Group
-              x={KEYBOARD_WIDTH}
-              y={RULER_HEIGHT}
-              clipX={0}
-              clipY={0}
-              clipWidth={viewWidth}
-              clipHeight={gridHeight}
-            >
+            {backing && (
+              <>
+                <Group
+                  x={KEYBOARD_WIDTH}
+                  y={RULER_HEIGHT}
+                  clipX={0}
+                  clipY={0}
+                  clipWidth={viewWidth}
+                  clipHeight={BACKING_LANE_HEIGHT}
+                >
+                  <BackingLane
+                    backing={backing}
+                    duration={duration}
+                    pxPerSec={pxPerSec}
+                    scrollX={sx}
+                    width={viewWidth}
+                  />
+                </Group>
+                <Group y={RULER_HEIGHT}>
+                  <BackingLaneLabel />
+                </Group>
+              </>
+            )}
+            <Group x={KEYBOARD_WIDTH} y={gridTop} clipX={0} clipY={0} clipWidth={viewWidth} clipHeight={gridHeight}>
               <PitchGrid
                 duration={duration}
                 pxPerSec={pxPerSec}
@@ -149,20 +171,13 @@ export function PitchEditor({
                 height={gridHeight}
               />
             </Group>
-            <Group y={RULER_HEIGHT} clipX={0} clipY={0} clipWidth={KEYBOARD_WIDTH} clipHeight={gridHeight}>
+            <Group y={gridTop} clipX={0} clipY={0} clipWidth={KEYBOARD_WIDTH} clipHeight={gridHeight}>
               <Keyboard scrollY={sy} height={gridHeight} />
             </Group>
             <Rect width={KEYBOARD_WIDTH} height={RULER_HEIGHT} fill="#15171c" stroke="#30343d" strokeWidth={1} />
           </Layer>
           <Layer listening={false}>
-            <Group
-              x={KEYBOARD_WIDTH}
-              y={RULER_HEIGHT}
-              clipX={0}
-              clipY={0}
-              clipWidth={viewWidth}
-              clipHeight={gridHeight}
-            >
+            <Group x={KEYBOARD_WIDTH} y={gridTop} clipX={0} clipY={0} clipWidth={viewWidth} clipHeight={gridHeight}>
               <F0Curve f0={f0} shifts={shifts} pxPerSec={pxPerSec} scrollX={sx} scrollY={sy} width={viewWidth} />
               <Group x={-sx} y={-sy}>
                 {blobs}

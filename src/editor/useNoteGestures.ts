@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import type { NoteSegment } from '../types'
 import { type Edit, shiftNotes } from './edits'
-import { BLOB_HALF_HEIGHT, KEYBOARD_WIDTH, ROW_HEIGHT, RULER_HEIGHT, pitchAtY, pitchToY } from './layout'
+import { BLOB_HALF_HEIGHT, KEYBOARD_WIDTH, ROW_HEIGHT, pitchAtY, pitchToY } from './layout'
 
 /** Pointer travel (px) before a press on a note becomes a drag. */
 const DRAG_THRESHOLD = 3
@@ -21,6 +21,8 @@ type Gesture =
 
 interface Options {
   containerRef: RefObject<HTMLDivElement | null>
+  /** Where the pitch grid starts, below the ruler (and the backing lane). */
+  gridTop: number
   notes: NoteSegment[]
   selection: Set<string>
   snap: boolean
@@ -79,6 +81,7 @@ function cursorFor(gesture: Gesture | null, hovered: string | null) {
  */
 export function useNoteGestures({
   containerRef,
+  gridTop,
   notes,
   selection,
   snap,
@@ -96,18 +99,19 @@ export function useNoteGestures({
   const [hovered, setHovered] = useState<string | null>(null)
   const [gesture, setGesture] = useState<Gesture | null>(null)
 
-  /** Pointer position in grid content coordinates; inGrid is false over the ruler or keyboard. */
+  /** Pointer position in grid content coordinates; inGrid is false over the keyboard and above the grid. */
   const toContent = (e: ReactPointerEvent) => {
     const rect = containerRef.current!.getBoundingClientRect()
     const vx = e.clientX - rect.left - KEYBOARD_WIDTH
-    const vy = e.clientY - rect.top - RULER_HEIGHT
-    return { x: vx + sx, y: vy + sy, inGrid: vx >= 0 && vy >= 0, onRuler: vx >= 0 && vy < 0 }
+    const vy = e.clientY - rect.top - gridTop
+    return { x: vx + sx, y: vy + sy, inGrid: vx >= 0 && vy >= 0, aboveGrid: vx >= 0 && vy < 0 }
   }
 
   const onPointerDown = (e: ReactPointerEvent) => {
     if (e.button !== 0) return
-    const { x, y, inGrid, onRuler } = toContent(e)
-    if (onRuler) {
+    const { x, y, inGrid, aboveGrid } = toContent(e)
+    // The ruler and the backing lane both seek.
+    if (aboveGrid) {
       onSeek(x / pxPerSec)
       return
     }

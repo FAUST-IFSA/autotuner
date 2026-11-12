@@ -1,5 +1,7 @@
 export const KEYBOARD_WIDTH = 56
 export const RULER_HEIGHT = 24
+/** The backing track's waveform strip, between the ruler and the pitch grid (when there is a backing track). */
+export const BACKING_LANE_HEIGHT = 56
 export const ROW_HEIGHT = 22
 /** Blobs extend past their own row so the waveform shape stays readable. */
 export const BLOB_HALF_HEIGHT = ROW_HEIGHT * 1.25

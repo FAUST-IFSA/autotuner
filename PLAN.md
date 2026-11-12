@@ -27,7 +27,7 @@ Access is gated by an email address, with no passwords or accounts. One file is 
 
 1. **Email gate** (new). Email field, an unticked separate checkbox for marketing emails, a checkbox confirming
    the user is 15 or older, and a button. Client-side stub for now (there is no backend, see §2).
-2. **Upload** (exists: `UploadScreen`). react-dropzone, single file, up to 100 MB and 10 minutes. Accepts
+2. **Upload** (exists: `UploadScreen`). react-dropzone, single file, up to 400 MB and 10 minutes. Accepts
    whatever the browser can decode (WAV, MP3, OGG, FLAC; M4A where supported). Add a Recent files button and a
    help button to the header.
 3. **Analyzing** (exists as the dropzone's busy state). Shows progress from the worker. Ends with the app's
@@ -38,6 +38,12 @@ Access is gated by an email address, with no passwords or accounts. One file is 
    choice.
 5. **Downloaded** (new). Confirms the file was saved, with buttons to return to the editor or tune another
    vocal.
+6. **Backing track** (added 2026-11-04). After a new vocal is analysed, the app asks whether to add a backing
+   track; yes opens the upload screen again for it ("Add backing track" in the editor does the same later).
+   It plays under the vocal for reference with mute and volume, drawn as a waveform lane above the pitch
+   grid. It is never tuned or exported. After the upload, a Line up screen places the vocal in the song by
+   dragging and nudging (files of the same length start together). The song's key is detected from the backing
+   track and shown above the pitch editor when it's clear. Next: key-aware Tune Up and snapping.
 
 ## 2. Architecture
 
