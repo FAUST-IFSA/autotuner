@@ -36,6 +36,30 @@ reaches that point, and two edited neighbours switch directly from one shift to 
 The 300 ms limit is a first guess, not tuned by ear. Audio that was never detected as a note at all (long
 unvoiced stretches inside a phrase) is still unshifted; that needs the F0 curve, or a range-level shift.
 
+## 2026-10-28
+
+### Upload limit raised from 100 MB to 400 MB
+
+Memory follows a file's duration, not its size: every file is decoded to 32-bit float audio at the playback
+rate, so 10 minutes of stereo costs about the same whether it arrived as a 10 MB MP3 or a 300 MB WAV. The
+100 MB cap rejected legitimate files inside the 10-minute limit (10 minutes of 44.1 kHz/16-bit stereo WAV is
+106 MB; 48 kHz/24-bit is 173 MB). 400 MB fits 10 minutes of 96 kHz/24-bit stereo (346 MB). The 10-minute
+limit stays the real memory guard; the byte cap only stops a huge file from being read in at all.
+
+Verified in the dev browser (Chromium) with a 9:50, 96 kHz/24-bit stereo WAV (339.8 MB):
+- A 401 MB file is refused with "Please drop a single audio file under 400 MB."
+- Load and analysis: about 170 s to the editor (analysis reached 100% at about 130 s), 1,936 notes. The pane
+  was hidden during the run, so times are rough.
+- Tune Up (1,384 notes changed), playback and both exports work. The WAV is 96 kHz/24-bit, 590 s, 339.8 MB
+  (63 s to export); the MP3 is 48 kHz, 192 kbps, 590 s, 14.2 MB (68 s).
+- Recent files saved the 340 MB original with its edits, and reopening it took 10 s.
+- Peak renderer memory was about 1.26 GB (finishing the load), 1.18 GB (WAV export). The test also held an
+  extra in-memory copy of the file, so a real drop peaks somewhat lower.
+- Browser storage quota depends on free disk: on a Mac with about 9 GB free it was 1.7 GB, so only a few
+  files this size fit in recent files. A save that doesn't fit is skipped with a console warning.
+
+Not tested: Safari.
+
 ## 2026-10-21 (architecture review)
 
 A lean review covered module boundaries, folder structure and resource lifecycles: three reviewers, one

@@ -27,7 +27,7 @@ Access is gated by an email address, with no passwords or accounts. One file is 
 
 1. **Email gate** (new). Email field, an unticked separate checkbox for marketing emails, a checkbox confirming
    the user is 15 or older, and a button. Client-side stub for now (there is no backend, see §2).
-2. **Upload** (exists: `UploadScreen`). react-dropzone, single file, up to 100 MB and 10 minutes. Accepts
+2. **Upload** (exists: `UploadScreen`). react-dropzone, single file, up to 400 MB and 10 minutes. Accepts
    whatever the browser can decode (WAV, MP3, OGG, FLAC; M4A where supported). Add a Recent files button and a
    help button to the header.
 3. **Analyzing** (exists as the dropzone's busy state). Shows progress from the worker. Ends with the app's
