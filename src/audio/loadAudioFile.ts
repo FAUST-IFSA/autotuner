@@ -1,18 +1,10 @@
 import type { Project } from '../types'
 import type { AnalysisMessage, AnalysisRequest, AnalysisResult } from './analysis.worker'
+import { mixToMono } from './channels'
 import { decodeAudioFile } from './decode'
 import { ANALYSIS_SAMPLE_RATE } from './f0'
 
 export const MAX_DURATION_SECONDS = 10 * 60
-
-function mixToMono(buffer: AudioBuffer): Float32Array {
-  const mono = new Float32Array(buffer.length)
-  for (let c = 0; c < buffer.numberOfChannels; c++) {
-    const channel = buffer.getChannelData(c)
-    for (let i = 0; i < channel.length; i++) mono[i] += channel[i] / buffer.numberOfChannels
-  }
-  return mono
-}
 
 /** Mono at 22,050 Hz for pitch analysis. The OfflineAudioContext handles downmix and resampling. */
 export async function resampleForAnalysis(buffer: AudioBuffer): Promise<Float32Array> {

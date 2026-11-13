@@ -2,6 +2,31 @@
 
 Newest first. Each entry: what changed, why, and what it affects.
 
+## 2026-11-04
+
+### Backing track, for reference only
+
+A client request: let the singer hear their vocal against the song while tuning. After a new vocal is analysed
+a screen of its own asks "Add a backing track?"; yes opens the upload screen again (same dropzone and limits,
+no recent files). Both are full screens covering the editor, which stays mounted underneath so its engine and
+undo history survive. "Add
+backing track" in the editor header opens the same screen later, and Remove takes it away again.
+
+- **Playback.** The backing track doesn't go through Signalsmith. It's a plain `AudioBufferSourceNode`, one
+  per play, started at the same context time the vocal is scheduled to be heard (`startOutput`), behind its
+  own fade and a volume gain. Pause, seek, the end of the vocal and the drag preview stop it with the vocal.
+  Measured by recording both outputs with a copy of the vocal as the backing track: the backing lands within
+  1 ms of the vocal from a fresh start, and within 4 ms after seeks (the stretcher's block timing).
+- **Timeline.** The editor keeps the vocal's timeline. `BackingTrack.offset` says where the vocal starts in
+  the backing track (0 for now; lining them up is the next change), and only the part under the vocal is
+  shown and played (`backingSpan`). Notes, the ruler, zoom and export are unchanged.
+- **Export** reads only the vocal file and its notes (`exportTuned`), so the backing track can't reach it.
+- **Volume** is a 0 to 1 slider applied squared, so it feels even; it starts at 0.8 because backing tracks are
+  usually mastered louder than a raw vocal.
+- **Recent files** keep the backing file under its own key, written once, and its settings (offset, volume,
+  mute) next to the edits. Reopening decodes it again; a backing track that fails to load is left out rather
+  than failing the project.
+
 ## 2026-11-03 (shifts follow the sound between notes)
 
 After gap bridging, a shifted talking vocal (`bside_intro`) still had syllables at the original pitch, all in

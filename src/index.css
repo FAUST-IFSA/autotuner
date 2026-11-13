@@ -254,6 +254,72 @@ button:disabled {
   gap: 12px;
 }
 
+/* Adding a backing track: its own screens (the question, then the upload screen again), covering the editor. */
+.backing-upload-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #0f1115;
+}
+
+.backing-upload-screen .subtitle {
+  max-width: 560px;
+  text-align: center;
+}
+
+.add-backing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.backing-note {
+  margin: 8px 0;
+  color: #7d8590;
+  font-size: 14px;
+}
+
+.backing-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid #30343d;
+  font-size: 13px;
+}
+
+.backing-label {
+  color: #5eb0ef;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.backing-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa1ab;
+}
+
+.backing-bar button {
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #9aa1ab;
+}
+
+.volume input {
+  width: 110px;
+  accent-color: #5eb0ef;
+}
+
 .pitch-editor {
   flex: 1;
   min-height: 0;

@@ -1,8 +1,9 @@
 import { del, get, set } from 'idb-keyval'
+import { loadBackingTrack } from '../audio/backing'
 import { decodeAudioFile } from '../audio/decode'
 import { isEdited } from '../audio/music'
 import { voicedRuns } from '../audio/f0'
-import type { F0Curve, NoteSegment, Peaks, Project, TimeSpan } from '../types'
+import type { BackingTrack, F0Curve, NoteSegment, Peaks, Project, TimeSpan } from '../types'
 
 export const MAX_RECENT = 10
 
@@ -31,9 +32,24 @@ interface StoredProject {
   audible?: TimeSpan[]
 }
 
+/** A project's backing track file, written once when it's added; its settings are saved with the edits. */
+interface StoredBacking {
+  fileName: string
+  file: Blob
+}
+
+type BackingSettings = Pick<BackingTrack, 'offset' | 'volume' | 'muted'>
+
 const INDEX_KEY = 'recent:index'
 const projectKey = (id: string) => `recent:project:${id}`
 const notesKey = (id: string) => `recent:notes:${id}`
+const backingKey = (id: string) => `recent:backing:${id}`
+const backingSettingsKey = (id: string) => `recent:backing-settings:${id}`
+
+const deleteBacking = (id: string) => Promise.all([del(backingKey(id)), del(backingSettingsKey(id))])
+const deleteProject = (id: string) => Promise.all([del(projectKey(id)), del(notesKey(id)), deleteBacking(id)])
+
+const settingsOf = ({ offset, volume, muted }: BackingTrack): BackingSettings => ({ offset, volume, muted })
 
 /** Most recent first, at most `max`; returns the list to keep and the ids that fell off. */
 export function updateIndex(
@@ -77,7 +93,7 @@ export async function listRecent(): Promise<RecentSummary[]> {
 async function touch(project: Project, opened: number) {
   const { index, dropped } = updateIndex(await readIndex(), summarize(project, opened))
   await set(INDEX_KEY, index)
-  await Promise.all(dropped.flatMap((id) => [del(projectKey(id)), del(notesKey(id))]))
+  await Promise.all(dropped.map(deleteProject))
 }
 
 /** Saves a newly analysed project at the top of the list. Storage problems are only logged. */
@@ -101,12 +117,13 @@ export function saveRecent(project: Project): Promise<void> {
   })
 }
 
-/** Saves just the edits (called as notes change); keeps the list order. */
-export function saveRecentNotes(project: Project): Promise<void> {
+/** Saves just the edits (called as notes or backing track settings change); keeps the list order. */
+export function saveRecentEdits(project: Project): Promise<void> {
   return serially(async () => {
     try {
       if (!(await get(projectKey(project.id)))) return
       await set(notesKey(project.id), project.notes)
+      if (project.backing) await set(backingSettingsKey(project.id), settingsOf(project.backing))
       const index = await readIndex()
       const entry = index.find((r) => r.id === project.id)
       if (entry)
@@ -120,20 +137,60 @@ export function saveRecentNotes(project: Project): Promise<void> {
   })
 }
 
+/** Saves a project's new backing track. Only for projects already in recent files; problems are only logged. */
+export function saveRecentBacking(id: string, backing: BackingTrack): Promise<void> {
+  return serially(async () => {
+    try {
+      if (!(await get(projectKey(id)))) return
+      const stored: StoredBacking = { fileName: backing.fileName, file: backing.file }
+      await set(backingKey(id), stored)
+      await set(backingSettingsKey(id), settingsOf(backing))
+    } catch (err) {
+      console.warn('Could not save the backing track to recent files', err)
+    }
+  })
+}
+
+export function deleteRecentBacking(id: string): Promise<void> {
+  return serially(async () => {
+    try {
+      await deleteBacking(id)
+    } catch (err) {
+      console.warn('Could not remove the backing track from recent files', err)
+    }
+  })
+}
+
+/** Decodes a stored backing track again. One that won't load is left out rather than failing the project. */
+async function reopenBacking(stored: StoredBacking, settings: BackingSettings | undefined) {
+  try {
+    return { ...(await loadBackingTrack(stored.file, stored.fileName)), ...settings }
+  } catch (err) {
+    console.warn('Could not reopen the backing track', err)
+    return undefined
+  }
+}
+
 /** Reopens a project: decodes the stored original, reuses the stored analysis and edits. */
 export async function openRecent(id: string): Promise<Project> {
-  const [stored, notes] = await Promise.all([get<StoredProject>(projectKey(id)), get<NoteSegment[]>(notesKey(id))])
+  const [stored, notes, storedBacking, backingSettings] = await Promise.all([
+    get<StoredProject>(projectKey(id)),
+    get<NoteSegment[]>(notesKey(id)),
+    get<StoredBacking>(backingKey(id)),
+    get<BackingSettings>(backingSettingsKey(id)),
+  ])
   if (!stored || !notes) throw new Error('That project is no longer in recent files.')
   const buffer = await decodeAudioFile(stored.file, stored.fileName)
+  const backing = storedBacking && (await reopenBacking(storedBacking, backingSettings))
   // Older saves don't have it; the display curve's voiced runs are the closest stand-in (they cover less).
-  const project: Project = { ...stored, audible: stored.audible ?? voicedRuns(stored.f0), notes, buffer }
+  const project: Project = { ...stored, audible: stored.audible ?? voicedRuns(stored.f0), notes, buffer, backing }
   await serially(() => touch(project, Date.now())).catch((err) => console.warn('Could not update recent files', err))
   return project
 }
 
 export function deleteRecent(id: string): Promise<void> {
   return serially(async () => {
-    await Promise.all([del(projectKey(id)), del(notesKey(id))])
+    await deleteProject(id)
     await set(
       INDEX_KEY,
       (await readIndex()).filter((r) => r.id !== id),

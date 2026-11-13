@@ -36,6 +36,20 @@ export interface F0Curve {
   clarity: number[]
 }
 
+/** A song's backing track, played under the vocal for reference: never tuned or exported. */
+export interface BackingTrack {
+  file: Blob
+  fileName: string
+  /** Decoded through the playback context, like the vocal. */
+  buffer: AudioBuffer
+  peaks: Peaks
+  /** Seconds into the backing track where the vocal starts; negative when the vocal starts first. */
+  offset: number
+  /** Volume slider position, 0..1. */
+  volume: number
+  muted: boolean
+}
+
 export interface Project {
   /** Stable id, also the recent-files key. */
   id: string
@@ -51,6 +65,7 @@ export interface Project {
    * notes that wasn't detected as notes; see `buildSchedule`.
    */
   audible: TimeSpan[]
+  backing?: BackingTrack
   /** Basic Pitch failed, so the notes came from the rough loudness fallback (shown as a notice, not saved). */
   approximateNotes?: boolean
 }
